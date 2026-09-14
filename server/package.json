@@ -9,7 +9,8 @@
     "migrate": "dotenv -e .env -- node-pg-migrate",
     "migrate:up": "dotenv -e .env -- node-pg-migrate up",
     "migrate:down": "dotenv -e .env -- node-pg-migrate down",
-    "create-admin": "node scripts/create-admin.js"
+    "create-admin": "node scripts/create-admin.js",
+    "test:qa": "node --test test/qa.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
