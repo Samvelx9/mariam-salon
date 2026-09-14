@@ -99,7 +99,11 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
     );
 
     const booking = rows[0];
-    await notifyTelegram({ type: 'booking_created', booking, service });
+    await notifyTelegram({
+      type: 'booking_created',
+      booking: { ...booking, customer_name: customerName, customer_phone: customerPhone },
+      service,
+    });
 
     res.status(201).json({
       id: booking.id,

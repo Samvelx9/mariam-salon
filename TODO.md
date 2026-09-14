@@ -16,7 +16,7 @@ prompt text behind each step below.
 - [x] ~~Step 2 — Database schema & migrations~~ (done, verified against real data)
 - [x] ~~Step 3 — Guest-facing API~~ (done, verified end-to-end against real data)
 - [x] ~~Step 4 — Admin API~~ (done, verified end-to-end against real data)
-- [ ] **Step 5** — Telegram notifications (bot setup, wire into booking create/cancel)
+- [x] ~~Step 5 — Telegram notifications~~ (done, real bot, verified live delivery)
 - [ ] **Step 6** — Guest-facing frontend (port `Main.dc.html` prototype to real app +
       real API + i18n)
 - [ ] **Step 7** — Admin dashboard frontend (fresh design, same localization pattern)
@@ -39,4 +39,5 @@ Remember to close the tunnel when done.
       `npm run create-admin -- <username> <password>` against the VM's Postgres.
 
 ## Current next step
-➡️ **Step 5 — Telegram notifications**.
+➡️ **Step 6 — Guest-facing frontend** (port the `Main.dc.html` prototype to a real
+React app wired to the Step 3 API).

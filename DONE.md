@@ -133,3 +133,25 @@
   database for testing — **replace this with a real password before going live**
   (`npm run create-admin -- <username> <newpassword>` on the VM, run against the VM's
   Postgres, resets it)
+
+## Step 5 — Telegram notifications ✅
+- Real bot created via @BotFather: `@Myshugbot`. Mariam started a DM with it, and her
+  chat ID was found via the bot API's `getUpdates` (value lives only in `server/.env`,
+  not committed — same treatment as the bot token) — the lookup process is documented
+  as a repeatable one-time setup in the root `README.md` ("Telegram notifications
+  setup"), not just in code comments, per the plan
+- `server/src/services/telegram.js` — real implementation replacing the Step 3 stub.
+  Sends a Russian-language message (plan's default language) on booking creation and
+  cancellation, with service name, local date/time, customer name and phone
+- **Best-effort by design**: wrapped in try/catch so a Telegram outage or missing
+  config never breaks the booking flow itself — logs an error and moves on rather
+  than throwing
+- Bot token + chat ID stored as env config (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`)
+  in `server/.env` (gitignored) — never hardcoded, never committed
+- Verified live end-to-end: created a real booking and cancelled it against the real
+  Postgres + real Telegram API — Mariam confirmed receiving both the new-booking and
+  cancellation messages. Test booking cleaned up afterward.
+- Fixed a bug caught before testing: the create-booking handler's `RETURNING` clause
+  didn't include `customer_name`/`customer_phone`, so the notification would have sent
+  with missing customer details — fixed by attaching them onto the object passed to
+  `notifyTelegram`.
