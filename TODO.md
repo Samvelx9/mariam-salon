@@ -8,9 +8,10 @@ prompt text behind each step below.
   (`/opt/postgres` on `oracle-server`). Bound to `127.0.0.1:5432` only — reaching it
   from outside the VM (e.g. to run migrations from this sandbox) needs an SSH tunnel,
   or migrations get run directly on the VM.
-- ~~Final production domain~~ → still open: `mariamik.info` currently running on the
-  VM is a **placeholder**, not the final domain. TLS setup is deferred until the real
-  domain is known (Step 8).
+- ~~Final production domain~~ → still open, but no longer blocking: the app is
+  **live now** on the placeholder `mariamik.info` (Step 8). Swapping to a final
+  domain later is purely nginx + DNS + a new TLS cert — no rebuild, since the
+  frontends only ever call a relative `/api` path. See README "Deployment".
 
 ## Remaining build steps
 - [x] ~~Step 2 — Database schema & migrations~~ (done, verified against real data)
@@ -21,7 +22,9 @@ prompt text behind each step below.
       against the real backend, two full scripted flows, zero console errors)
 - [x] ~~Step 7 — Admin dashboard frontend~~ (done, verified live against the real
       backend, zero console errors)
-- [ ] **Step 8** — Deployment (Oracle Cloud VM, process manager, reverse proxy + TLS)
+- [x] ~~Step 8 — Deployment~~ (done — live at http://mariamik.info/ and
+      http://mariamik.info/admin/, verified end-to-end against the public domain in
+      a real browser. TLS deferred, see "Resolved decisions" above.)
 - [ ] **Step 9** — QA pass (race conditions, cutoff boundaries, i18n, financial totals)
 
 ## Smaller open items (from the plan's "still to review" list)
@@ -36,8 +39,10 @@ Remember to close the tunnel when done.
 
 ## Reminder
 - [ ] Replace the placeholder admin credentials (`mariam` / test password, created
-      during Step 4 testing) with real ones before going live — run
-      `npm run create-admin -- <username> <password>` against the VM's Postgres.
+      during Step 4 testing) with real ones — the admin dashboard is now actually
+      live, so this is no longer just theoretical. Run
+      `npm run create-admin -- <username> <password>` against the VM's Postgres
+      (see README "Secrets").
 
 ## Current next step
-➡️ **Step 8 — Deployment**.
+➡️ **Step 9 — QA pass** (the last step in the roadmap).

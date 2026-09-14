@@ -236,3 +236,48 @@
      the initial `localStorage` read) instead of via an effect.
   2. Minor: the services list showed a bare number for duration ("30 · 12,000") with
      no unit — added the missing `minUnit` translation and fixed the display.
+
+## Step 8 — Deployment ✅
+- Resolved the domain question by tracing through what actually needs one: none of
+  the internal calls (backend↔Postgres, backend↔Telegram) reference a domain at all —
+  only the browser-facing URLs and TLS cert issuance do. So the frontends were built
+  to call the API via a **relative** `/api` path (`client-guest/.env.production` /
+  `client-admin/.env.production`) rather than a hardcoded domain, meaning the compiled
+  JS never contains the domain anywhere — deployed live now on the placeholder
+  `mariamik.info` (DNS already points there), and swapping to a final domain later is
+  purely an nginx + DNS + TLS-cert change, confirmed to need zero rebuild
+- `server/Dockerfile` — `node:20-alpine`, prod deps only, `HEALTHCHECK` via Node's own
+  `fetch` (no extra binary needed)
+- On the VM: cloned this repo to `/opt/app/repo` (public repo, plain `git clone`),
+  `/opt/app/.env` (backend secrets — `DATABASE_URL` built from `/opt/postgres/.env`
+  entirely via a remote shell, a freshly generated `JWT_SECRET`, the Telegram
+  token/chat-id — nothing pulled back into this sandbox), `/opt/app/docker-compose.yml`
+  (backend service, joined to the existing `nginx-setup_web` network, no published
+  port — reachable only via nginx)
+- Both frontends built via a throwaway `node:20-alpine` container on the VM (still no
+  Node installed on the host) and published into nginx's webroot: guest app at `/`,
+  admin dashboard at `/admin/` (`vite.config.js` sets `base: '/admin/'` for
+  production builds only, confirmed via a build that all asset URLs came out prefixed
+  correctly)
+- Updated `/opt/nginx-setup/conf.d/mariamik-http.info.conf`: `/api/` reverse-proxies
+  to the backend container (confirmed DNS resolution between containers first via
+  `getent hosts` before writing the config), `/admin/` serves the admin SPA with a
+  fallback to its own `index.html`, `/` serves the guest SPA. Validated with
+  `nginx -t` before applying, then applied with a **zero-downtime** `nginx -s reload`
+  (not a restart)
+- `/opt/app/deploy.sh` — the documented, repeatable redeploy path: git pull, rebuild
+  + restart the backend container, rebuild both frontends, republish static files
+- **Verified fully live** against the real public domain (not just internally): a
+  real headless-browser run hit `http://mariamik.info/` and `http://mariamik.info/admin/`
+  directly — full guest booking flow (services → slots via the live API proxy →
+  booking → confirmation → cancel) and admin login, all over the public internet,
+  zero console errors. Test data cleaned up afterward.
+- TLS deliberately deferred (placeholder domain) — the exact steps to enable it once
+  a final domain is chosen are documented in the README ("Deployment" section), and
+  require no backend/frontend/database changes, only nginx + a cert
+
+## Reminder (carried over)
+- [ ] Replace the placeholder admin credentials (`mariam` / test password) with real
+      ones before real use — now doubly relevant since the admin dashboard is
+      actually live: `npm run create-admin -- <username> <password>` run on the VM
+      against the live Postgres (see README).
