@@ -9,23 +9,11 @@ import {
 import { localToUtc, addMinutes } from '../lib/time.js';
 import { notifyTelegram } from '../services/telegram.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
+import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
 
 export const guestRouter = Router();
 
 const EXCLUSION_VIOLATION = '23P01';
-
-function cleanString(value, maxLength = 200) {
-  if (typeof value !== 'string') return '';
-  return value.trim().slice(0, maxLength);
-}
-
-function isValidDate(str) {
-  return typeof str === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(str);
-}
-
-function isValidTime(str) {
-  return typeof str === 'string' && /^\d{2}:\d{2}$/.test(str);
-}
 
 async function getBookingWithService(id) {
   const { rows } = await pool.query(

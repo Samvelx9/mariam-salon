@@ -15,8 +15,7 @@ prompt text behind each step below.
 ## Remaining build steps
 - [x] ~~Step 2 — Database schema & migrations~~ (done, verified against real data)
 - [x] ~~Step 3 — Guest-facing API~~ (done, verified end-to-end against real data)
-- [ ] **Step 4** — Admin API (auth, services CRUD, availability, bookings status
-      changes, expenses + autocomplete, financial aggregation)
+- [x] ~~Step 4 — Admin API~~ (done, verified end-to-end against real data)
 - [ ] **Step 5** — Telegram notifications (bot setup, wire into booking create/cancel)
 - [ ] **Step 6** — Guest-facing frontend (port `Main.dc.html` prototype to real app +
       real API + i18n)
@@ -34,5 +33,10 @@ For local iteration against the real VM database: open a tunnel with
 `server/.env` (gitignored) already points `DATABASE_URL` through that tunnel port.
 Remember to close the tunnel when done.
 
+## Reminder
+- [ ] Replace the placeholder admin credentials (`mariam` / test password, created
+      during Step 4 testing) with real ones before going live — run
+      `npm run create-admin -- <username> <password>` against the VM's Postgres.
+
 ## Current next step
-➡️ **Step 4 — Admin API**.
+➡️ **Step 5 — Telegram notifications**.

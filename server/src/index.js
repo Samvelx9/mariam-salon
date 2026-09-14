@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { pool } from './db.js';
 import { guestRouter } from './routes/guest.js';
+import { adminRouter } from './routes/admin.js';
 
 const app = express();
 app.use(cors());
@@ -18,6 +19,7 @@ app.get('/api/health', async (_req, res) => {
 });
 
 app.use('/api', guestRouter);
+app.use('/api/admin', adminRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {

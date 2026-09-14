@@ -78,7 +78,7 @@ export async function getAvailableSlots(service, { excludeBookingId } = {}) {
   );
   const blocksByDate = new Map();
   for (const b of blocks) {
-    const key = b.date.toISOString().slice(0, 10);
+    const key = b.date;
     if (!blocksByDate.has(key)) blocksByDate.set(key, []);
     blocksByDate.get(key).push(b);
   }

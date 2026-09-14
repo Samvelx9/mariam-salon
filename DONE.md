@@ -94,3 +94,42 @@
   rejection (`409 slot_taken`), phone lookup, reschedule, cancel, idempotent
   double-cancel (409), reschedule of a cancelled booking (409), reschedule of a
   missing booking (404). All test rows cleaned up afterward.
+
+## Step 4 — Admin API ✅
+- `POST /api/admin/login` — username/password against the single `admin_user` row
+  (bcrypt), returns a JWT (12h expiry). Everything else under `/api/admin` is guarded
+  by `requireAdminAuth` (`server/src/middleware/auth.js`)
+- No public signup endpoint — the admin account is provisioned via
+  `npm run create-admin -- <username> <password>` (`server/scripts/create-admin.js`,
+  upserts the single row, so it also works to reset a forgotten password)
+- Services: full CRUD. Delete attempts a real `DELETE`; if the service has booking
+  history the FK constraint blocks it and the API returns a friendly `409
+  service_has_bookings` suggesting `isActive:false` instead — verified live (created
+  a booking against a service, confirmed the delete was blocked with that message)
+- Availability: `GET`/`PUT` weekly hours per day, `GET`/`POST`/`DELETE` date-specific
+  blocks
+- Bookings: `GET` list (filterable by date range/status) for the calendar view,
+  `PATCH .../status` for manual status changes (completed/cancelled/no_show) — no
+  cutoff, no restrictions, matching the plan's "all status changes are manual"
+- Expenses: `POST` create, `GET` list (filterable), `GET .../categories` for
+  autocomplete (distinct categories, most recently used first)
+- `GET /api/admin/financials?from=&to=` — income by service, expenses by category,
+  net, bookings-completed count, all AMD. Verified against hand-calculated numbers
+  (12000 income, 20000 expenses, net -8000) using a seeded test dataset
+- Verified live: no-show marking does **not** block that phone number from booking
+  again (created a booking, marked no_show via admin, guest successfully re-booked
+  the same phone number)
+- Two real bugs found and fixed while testing, both now covered:
+  - Postgres `DATE` columns (`availability_blocks.date`, `expenses.date`) were coming
+    back as JS `Date` objects parsed in the **server process's local timezone**,
+    silently shifting the calendar date on serialization (a `2026-09-21` block round
+    -tripped as `"2026-09-20T20:00:00.000Z"`). Fixed with a `pg` type-parser override
+    in `server/src/db.js` so `DATE` always returns a plain `'YYYY-MM-DD'` string —
+    verified the shift is gone and slot-blocking by date still works correctly
+  - `/api/admin/financials` was returning `SUM`/`COUNT` as strings (Postgres's
+    default for aggregates, to avoid bigint precision loss) instead of numbers —
+    fixed by mapping the rows before response
+- A placeholder admin account (`mariam` / test password) was created on the VM's
+  database for testing — **replace this with a real password before going live**
+  (`npm run create-admin -- <username> <newpassword>` on the VM, run against the VM's
+  Postgres, resets it)

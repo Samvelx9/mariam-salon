@@ -1,0 +1,498 @@
+import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { pool } from '../db.js';
+import { asyncHandler } from '../lib/asyncHandler.js';
+import { requireAdminAuth } from '../middleware/auth.js';
+import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
+import { todayDateStr, addDaysToDateStr, localToUtc } from '../lib/time.js';
+
+export const adminRouter = Router();
+
+const FOREIGN_KEY_VIOLATION = '23503';
+const CHECK_VIOLATION = '23514';
+const UNIQUE_VIOLATION = '23505';
+const BOOKING_STATUSES = ['confirmed', 'completed', 'cancelled', 'no_show'];
+
+function slugify(text) {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+// ---------------------------------------------------------------------------
+// Auth (public)
+// ---------------------------------------------------------------------------
+
+adminRouter.post(
+  '/login',
+  asyncHandler(async (req, res) => {
+    const username = cleanString(req.body?.username, 100);
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'missing_credentials' });
+    }
+
+    const { rows } = await pool.query(
+      'SELECT username, password_hash FROM admin_user WHERE id = 1'
+    );
+    const admin = rows[0];
+
+    const valid = admin ? await bcrypt.compare(password, admin.password_hash) : false;
+    if (!admin || !valid || admin.username !== username) {
+      return res.status(401).json({ error: 'invalid_credentials' });
+    }
+
+    const token = jwt.sign({ sub: 'admin', username }, process.env.JWT_SECRET, {
+      expiresIn: '12h',
+    });
+
+    res.json({ token });
+  })
+);
+
+adminRouter.use(requireAdminAuth);
+
+// ---------------------------------------------------------------------------
+// Services
+// ---------------------------------------------------------------------------
+
+adminRouter.get(
+  '/services',
+  asyncHandler(async (_req, res) => {
+    const { rows } = await pool.query(
+      `SELECT id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd, is_active
+       FROM services ORDER BY id`
+    );
+    res.json(rows);
+  })
+);
+
+adminRouter.post(
+  '/services',
+  asyncHandler(async (req, res) => {
+    const name_en = cleanString(req.body?.nameEn, 200);
+    const name_ru = cleanString(req.body?.nameRu, 200);
+    const name_hy = cleanString(req.body?.nameHy, 200);
+    const duration_minutes = Number(req.body?.durationMinutes);
+    const price_amd = Number(req.body?.priceAmd);
+    const slug = cleanString(req.body?.slug, 100) || slugify(name_en);
+
+    if (!name_en || !name_ru || !name_hy || !slug) {
+      return res.status(400).json({ error: 'missing_fields' });
+    }
+    if (!Number.isInteger(duration_minutes) || duration_minutes <= 0) {
+      return res.status(400).json({ error: 'invalid_duration' });
+    }
+    if (!Number.isInteger(price_amd) || price_amd < 0) {
+      return res.status(400).json({ error: 'invalid_price' });
+    }
+
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO services (slug, name_en, name_ru, name_hy, duration_minutes, price_amd)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd, is_active`,
+        [slug, name_en, name_ru, name_hy, duration_minutes, price_amd]
+      );
+      res.status(201).json(rows[0]);
+    } catch (err) {
+      if (err.code === UNIQUE_VIOLATION) {
+        return res.status(409).json({ error: 'slug_taken' });
+      }
+      throw err;
+    }
+  })
+);
+
+adminRouter.patch(
+  '/services/:id',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid_service_id' });
+    }
+
+    const fields = [];
+    const values = [];
+    let paramIndex = 1;
+
+    const fieldMap = {
+      nameEn: 'name_en',
+      nameRu: 'name_ru',
+      nameHy: 'name_hy',
+      durationMinutes: 'duration_minutes',
+      priceAmd: 'price_amd',
+      isActive: 'is_active',
+    };
+
+    for (const [bodyKey, column] of Object.entries(fieldMap)) {
+      if (req.body?.[bodyKey] === undefined) continue;
+
+      let value = req.body[bodyKey];
+      if (column === 'name_en' || column === 'name_ru' || column === 'name_hy') {
+        value = cleanString(value, 200);
+        if (!value) return res.status(400).json({ error: `invalid_${bodyKey}` });
+      } else if (column === 'duration_minutes') {
+        value = Number(value);
+        if (!Number.isInteger(value) || value <= 0) {
+          return res.status(400).json({ error: 'invalid_duration' });
+        }
+      } else if (column === 'price_amd') {
+        value = Number(value);
+        if (!Number.isInteger(value) || value < 0) {
+          return res.status(400).json({ error: 'invalid_price' });
+        }
+      } else if (column === 'is_active') {
+        value = Boolean(value);
+      }
+
+      fields.push(`${column} = $${paramIndex}`);
+      values.push(value);
+      paramIndex += 1;
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'no_fields_to_update' });
+    }
+
+    values.push(id);
+    const { rows } = await pool.query(
+      `UPDATE services SET ${fields.join(', ')} WHERE id = $${paramIndex}
+       RETURNING id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd, is_active`,
+      values
+    );
+
+    if (!rows[0]) {
+      return res.status(404).json({ error: 'service_not_found' });
+    }
+    res.json(rows[0]);
+  })
+);
+
+adminRouter.delete(
+  '/services/:id',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid_service_id' });
+    }
+
+    try {
+      const { rowCount } = await pool.query('DELETE FROM services WHERE id = $1', [id]);
+      if (rowCount === 0) {
+        return res.status(404).json({ error: 'service_not_found' });
+      }
+      res.status(204).end();
+    } catch (err) {
+      if (err.code === FOREIGN_KEY_VIOLATION) {
+        return res.status(409).json({
+          error: 'service_has_bookings',
+          hint: 'Deactivate the service instead (PATCH isActive:false) to preserve booking history.',
+        });
+      }
+      throw err;
+    }
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Availability
+// ---------------------------------------------------------------------------
+
+adminRouter.get(
+  '/availability/weekly',
+  asyncHandler(async (_req, res) => {
+    const { rows } = await pool.query(
+      'SELECT day_of_week, is_open, start_time, end_time FROM weekly_hours ORDER BY day_of_week'
+    );
+    res.json(rows);
+  })
+);
+
+adminRouter.put(
+  '/availability/weekly/:dayOfWeek',
+  asyncHandler(async (req, res) => {
+    const dayOfWeek = Number(req.params.dayOfWeek);
+    if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
+      return res.status(400).json({ error: 'invalid_day_of_week' });
+    }
+
+    const isOpen = Boolean(req.body?.isOpen);
+    let startTime = null;
+    let endTime = null;
+
+    if (isOpen) {
+      startTime = req.body?.startTime;
+      endTime = req.body?.endTime;
+      if (!isValidTime(startTime) || !isValidTime(endTime) || startTime >= endTime) {
+        return res.status(400).json({ error: 'invalid_hours' });
+      }
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE weekly_hours SET is_open = $2, start_time = $3, end_time = $4
+       WHERE day_of_week = $1
+       RETURNING day_of_week, is_open, start_time, end_time`,
+      [dayOfWeek, isOpen, startTime, endTime]
+    );
+
+    if (!rows[0]) {
+      return res.status(404).json({ error: 'day_not_found' });
+    }
+    res.json(rows[0]);
+  })
+);
+
+adminRouter.get(
+  '/availability/blocks',
+  asyncHandler(async (req, res) => {
+    const from = isValidDate(req.query.from) ? req.query.from : todayDateStr();
+    const to = isValidDate(req.query.to) ? req.query.to : addDaysToDateStr(from, 365);
+
+    const { rows } = await pool.query(
+      `SELECT id, date, start_time, end_time, note FROM availability_blocks
+       WHERE date BETWEEN $1 AND $2 ORDER BY date, start_time NULLS FIRST`,
+      [from, to]
+    );
+    res.json(rows);
+  })
+);
+
+adminRouter.post(
+  '/availability/blocks',
+  asyncHandler(async (req, res) => {
+    const date = req.body?.date;
+    const startTime = req.body?.startTime ?? null;
+    const endTime = req.body?.endTime ?? null;
+    const note = cleanString(req.body?.note, 300) || null;
+
+    if (!isValidDate(date)) {
+      return res.status(400).json({ error: 'invalid_date' });
+    }
+    if ((startTime === null) !== (endTime === null)) {
+      return res.status(400).json({ error: 'provide_both_times_or_neither' });
+    }
+    if (startTime !== null && (!isValidTime(startTime) || !isValidTime(endTime) || startTime >= endTime)) {
+      return res.status(400).json({ error: 'invalid_times' });
+    }
+
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO availability_blocks (date, start_time, end_time, note)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, date, start_time, end_time, note`,
+        [date, startTime, endTime, note]
+      );
+      res.status(201).json(rows[0]);
+    } catch (err) {
+      if (err.code === CHECK_VIOLATION) {
+        return res.status(400).json({ error: 'invalid_times' });
+      }
+      throw err;
+    }
+  })
+);
+
+adminRouter.delete(
+  '/availability/blocks/:id',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid_block_id' });
+    }
+
+    const { rowCount } = await pool.query('DELETE FROM availability_blocks WHERE id = $1', [id]);
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'block_not_found' });
+    }
+    res.status(204).end();
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Bookings
+// ---------------------------------------------------------------------------
+
+adminRouter.get(
+  '/bookings',
+  asyncHandler(async (req, res) => {
+    const from = isValidDate(req.query.from) ? req.query.from : addDaysToDateStr(todayDateStr(), -30);
+    const to = isValidDate(req.query.to) ? req.query.to : addDaysToDateStr(todayDateStr(), 60);
+    const status = req.query.status;
+
+    if (status && !BOOKING_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'invalid_status' });
+    }
+
+    const rangeStart = localToUtc(from, '00:00');
+    const rangeEnd = localToUtc(addDaysToDateStr(to, 1), '00:00');
+
+    const params = [rangeStart, rangeEnd];
+    let query = `
+      SELECT b.id, b.service_id, b.start_time, b.end_time, b.customer_name, b.customer_phone,
+             b.status, b.price_at_booking, s.name_en, s.name_ru, s.name_hy
+      FROM bookings b
+      JOIN services s ON s.id = b.service_id
+      WHERE b.start_time >= $1 AND b.start_time < $2`;
+
+    if (status) {
+      params.push(status);
+      query += ` AND b.status = $3`;
+    }
+    query += ' ORDER BY b.start_time ASC';
+
+    const { rows } = await pool.query(query, params);
+    res.json(rows);
+  })
+);
+
+adminRouter.patch(
+  '/bookings/:id/status',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const status = req.body?.status;
+
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid_booking_id' });
+    }
+    if (!BOOKING_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'invalid_status' });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE bookings SET status = $2 WHERE id = $1
+       RETURNING id, status, start_time, end_time`,
+      [id, status]
+    );
+
+    if (!rows[0]) {
+      return res.status(404).json({ error: 'booking_not_found' });
+    }
+    res.json(rows[0]);
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Expenses
+// ---------------------------------------------------------------------------
+
+adminRouter.get(
+  '/expenses',
+  asyncHandler(async (req, res) => {
+    const from = isValidDate(req.query.from) ? req.query.from : addDaysToDateStr(todayDateStr(), -90);
+    const to = isValidDate(req.query.to) ? req.query.to : todayDateStr();
+    const category = req.query.category ? cleanString(req.query.category, 100) : null;
+
+    const params = [from, to];
+    let query = `SELECT id, category, description, amount_amd, date FROM expenses
+                  WHERE date BETWEEN $1 AND $2`;
+    if (category) {
+      params.push(category);
+      query += ` AND category = $3`;
+    }
+    query += ' ORDER BY date DESC, id DESC';
+
+    const { rows } = await pool.query(query, params);
+    res.json(rows);
+  })
+);
+
+adminRouter.get(
+  '/expenses/categories',
+  asyncHandler(async (_req, res) => {
+    const { rows } = await pool.query(
+      `SELECT category, MAX(date) AS last_used FROM expenses
+       GROUP BY category ORDER BY last_used DESC LIMIT 50`
+    );
+    res.json(rows.map((r) => r.category));
+  })
+);
+
+adminRouter.post(
+  '/expenses',
+  asyncHandler(async (req, res) => {
+    const category = cleanString(req.body?.category, 100);
+    const description = cleanString(req.body?.description, 300) || null;
+    const amount_amd = Number(req.body?.amountAmd);
+    const date = req.body?.date;
+
+    if (!category) {
+      return res.status(400).json({ error: 'missing_category' });
+    }
+    if (!Number.isInteger(amount_amd) || amount_amd <= 0) {
+      return res.status(400).json({ error: 'invalid_amount' });
+    }
+    if (!isValidDate(date)) {
+      return res.status(400).json({ error: 'invalid_date' });
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO expenses (category, description, amount_amd, date)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, category, description, amount_amd, date`,
+      [category, description, amount_amd, date]
+    );
+    res.status(201).json(rows[0]);
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Financials
+// ---------------------------------------------------------------------------
+
+adminRouter.get(
+  '/financials',
+  asyncHandler(async (req, res) => {
+    const today = todayDateStr();
+    const from = isValidDate(req.query.from) ? req.query.from : `${today.slice(0, 7)}-01`;
+    const to = isValidDate(req.query.to) ? req.query.to : today;
+
+    const { rows: incomeByService } = await pool.query(
+      `SELECT s.id AS service_id, s.name_en, s.name_ru, s.name_hy,
+              COALESCE(SUM(b.price_at_booking), 0) AS total, COUNT(b.id) AS count
+       FROM bookings b
+       JOIN services s ON s.id = b.service_id
+       WHERE b.status = 'completed'
+         AND (b.start_time AT TIME ZONE '+04:00')::date BETWEEN $1 AND $2
+       GROUP BY s.id, s.name_en, s.name_ru, s.name_hy
+       ORDER BY total DESC`,
+      [from, to]
+    );
+
+    const { rows: expensesByCategory } = await pool.query(
+      `SELECT category, COALESCE(SUM(amount_amd), 0) AS total, COUNT(*) AS count
+       FROM expenses
+       WHERE date BETWEEN $1 AND $2
+       GROUP BY category
+       ORDER BY total DESC`,
+      [from, to]
+    );
+
+    const byService = incomeByService.map((row) => ({
+      ...row,
+      total: Number(row.total),
+      count: Number(row.count),
+    }));
+    const byCategory = expensesByCategory.map((row) => ({
+      ...row,
+      total: Number(row.total),
+      count: Number(row.count),
+    }));
+
+    const incomeTotal = byService.reduce((sum, row) => sum + row.total, 0);
+    const expensesTotal = byCategory.reduce((sum, row) => sum + row.total, 0);
+    const bookingsCompleted = byService.reduce((sum, row) => sum + row.count, 0);
+
+    res.json({
+      period: { from, to },
+      income: { total: incomeTotal, byService },
+      expenses: { total: expensesTotal, byCategory },
+      net: incomeTotal - expensesTotal,
+      bookingsCompleted,
+    });
+  })
+);
