@@ -2,6 +2,7 @@
   "name": "mariam-salon-booking",
   "private": true,
   "workspaces": [
+    "shared",
     "server",
     "client-guest",
     "client-admin"

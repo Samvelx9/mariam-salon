@@ -19,7 +19,8 @@ prompt text behind each step below.
 - [x] ~~Step 5 — Telegram notifications~~ (done, real bot, verified live delivery)
 - [x] ~~Step 6 — Guest-facing frontend~~ (done, verified live in a real browser
       against the real backend, two full scripted flows, zero console errors)
-- [ ] **Step 7** — Admin dashboard frontend (fresh design, same localization pattern)
+- [x] ~~Step 7 — Admin dashboard frontend~~ (done, verified live against the real
+      backend, zero console errors)
 - [ ] **Step 8** — Deployment (Oracle Cloud VM, process manager, reverse proxy + TLS)
 - [ ] **Step 9** — QA pass (race conditions, cutoff boundaries, i18n, financial totals)
 
@@ -39,4 +40,4 @@ Remember to close the tunnel when done.
       `npm run create-admin -- <username> <password>` against the VM's Postgres.
 
 ## Current next step
-➡️ **Step 7 — Admin dashboard frontend**.
+➡️ **Step 8 — Deployment**.

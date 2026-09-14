@@ -195,3 +195,44 @@
      Vite's cold on-demand module compile on first navigation to the calendar screen —
      confirmed the app itself was fine by reproducing with proper `waitForSelector`
      instead of a fixed sleep.
+
+## Step 7 — Admin dashboard frontend ✅
+- New `shared` npm workspace (`salon-shared`) holding the i18n primitives common to
+  both frontends — `LANG_META`/`LANG_ORDER`/`LOCALE_TAG`/`DEFAULT_LANG`, date/price
+  formatting helpers, and the Yerevan-time split helper — imported by both
+  `client-guest` and `client-admin` instead of being duplicated (per the roadmap's
+  explicit "reuse shared translation strings... rather than re-translating from
+  scratch"). `client-guest` was refactored to consume it too, confirmed still builds
+  and its full test suite (from Step 6) still passes conceptually via a clean build.
+- `client-admin/src/`: login (JWT, persisted to `localStorage`), a tabbed layout
+  (Dashboard / Bookings / Services / Availability), same trilingual `STRINGS` pattern
+  (ru default, flag switcher in the top bar)
+- **Dashboard**: period presets (this month / last 30 days) + custom range, 4 metric
+  cards (income/expenses/net/bookings completed), income-by-service and
+  expenses-by-category breakdowns, a quick-add expense form with category
+  autocomplete (`<datalist>` from `GET /expenses/categories`), recent expenses list
+- **Services**: list (including inactive), add/edit form, deactivate/activate,
+  FK-protected delete with the friendly error surfaced as a browser alert
+- **Availability**: weekly hours editor (per-day open/closed + start/end time, save
+  per row), date-block list + add/delete form (whole-day or a specific time window)
+- **Bookings**: a week-at-a-time list grouped by day (not a full calendar-grid
+  widget — a deliberate simplification for a solo-practitioner's booking volume),
+  prev/next/today navigation, status filter, and a manual status-change dropdown per
+  booking
+- No dashboard mockup was tracked down (decided at the very start of the project) —
+  designed fresh, matching the guest app's visual language (same palette/fonts) but
+  a wider, desktop-oriented layout
+- **Verified live** in a real headless browser against the real backend + Postgres,
+  across several scripted runs (login, dashboard + quick-add expense, services CRUD
+  including delete, availability, bookings + status change, Armenian language
+  switch) — all checks passed, zero console errors
+- **Two real bugs found and fixed via this testing:**
+  1. A genuine login bug: `useAdminAuth` set the API client's auth token inside a
+     `useEffect`, but a child screen's own data-fetching effect fires *before* a
+     parent's effect on mount/update (React's effect ordering) — so the very first
+     authenticated request after login always went out without the token, got a 401,
+     and the app treated that as an invalid session and immediately logged back out.
+     Fixed by setting the token synchronously wherever it changes (login, logout, and
+     the initial `localStorage` read) instead of via an effect.
+  2. Minor: the services list showed a bare number for duration ("30 · 12,000") with
+     no unit — added the missing `minUnit` translation and fixed the display.

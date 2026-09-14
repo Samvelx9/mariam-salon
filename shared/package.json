@@ -1,0 +1,10 @@
+{
+  "name": "salon-shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./i18n": "./i18n.js",
+    "./time": "./time.js"
+  }
+}
