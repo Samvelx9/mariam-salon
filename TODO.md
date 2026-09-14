@@ -13,10 +13,12 @@ prompt text behind each step below.
   domain is known (Step 8).
 
 ## Remaining build steps
-- [ ] **Step 2** — Database schema & migrations (services, availability, bookings,
-      expenses, admin_user; `btree_gist` EXCLUDE constraint; seed 5 services)
+- [x] ~~Step 2 — Database schema & migrations~~ (done, verified against real data)
 - [ ] **Step 3** — Guest-facing API (services, slots, create/lookup/cancel/reschedule
-      booking, 90-min cutoff)
+      booking, 90-min cutoff). Note: needs a way to reach the VM's Postgres from
+      wherever the API runs during dev — either an SSH tunnel from this sandbox
+      (`ssh -L 5433:127.0.0.1:5432 oracle-server`) or running/testing the API on the
+      VM directly. Decide this when starting Step 3.
 - [ ] **Step 4** — Admin API (auth, services CRUD, availability, bookings status
       changes, expenses + autocomplete, financial aggregation)
 - [ ] **Step 5** — Telegram notifications (bot setup, wire into booking create/cancel)
@@ -31,5 +33,4 @@ prompt text behind each step below.
 - [ ] Full API endpoint list — gets nailed down as part of Steps 3 & 4
 
 ## Current next step
-➡️ **Step 2 — Database schema & migrations**, targeting the Postgres instance now
-running on `oracle-server` (via an SSH tunnel or run directly on the VM).
+➡️ **Step 3 — Guest-facing API**.

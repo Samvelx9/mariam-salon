@@ -43,3 +43,21 @@
   containerized in Step 8, consistent with "docker compose wherever applicable"
 - **Deferred** (by explicit choice): TLS cert for mariamik.info — it's a placeholder
   domain, not the final one, so this waits until Step 8 with the real domain
+
+## Step 2 — Database schema & migrations ✅
+- 5 `node-pg-migrate` migrations in `server/migrations/`: `admin_user`, `services`
+  (seeded with the 5 real services from the plan), `weekly_hours` +
+  `availability_blocks`, `bookings`, `expenses`
+- `bookings` has the `EXCLUDE USING gist (tstzrange(start_time, end_time, '[)') WITH &&)
+  WHERE (status <> 'cancelled')` constraint — **tested directly against real data**:
+  an overlapping insert was rejected, cancelling the conflicting booking let the new
+  one through, and the test rows were cleaned up afterward
+- Ran the migrations on the VM itself via a throwaway `node:20-alpine` Docker
+  container on the `nginx-setup_web` network — never installed Node on the host, and
+  the DB password was sourced from `/opt/postgres/.env` entirely within the remote
+  SSH session (never pulled into this sandbox)
+- Migration source files copied to `/opt/app/server/migrations` on the VM (kept in
+  sync with `server/migrations/` in this repo — re-copy after future migration changes)
+- Services table stores per-language names (`name_en` / `name_ru` / `name_hy`) since
+  the plan's localization section calls out service names explicitly, matching the
+  prototype's `SERVICE_NAMES` structure in `Main.dc.html`
