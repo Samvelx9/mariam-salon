@@ -132,7 +132,7 @@ guestRouter.post('/bookings/lookup', asyncHandler(async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT b.id, b.service_id, b.start_time, b.end_time, b.status, b.price_at_booking,
-            s.name_en, s.name_ru, s.name_hy
+            b.customer_name, s.name_en, s.name_ru, s.name_hy
      FROM bookings b
      JOIN services s ON s.id = b.service_id
      WHERE b.customer_phone = $1

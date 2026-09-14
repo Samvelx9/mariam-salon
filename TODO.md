@@ -17,8 +17,8 @@ prompt text behind each step below.
 - [x] ~~Step 3 — Guest-facing API~~ (done, verified end-to-end against real data)
 - [x] ~~Step 4 — Admin API~~ (done, verified end-to-end against real data)
 - [x] ~~Step 5 — Telegram notifications~~ (done, real bot, verified live delivery)
-- [ ] **Step 6** — Guest-facing frontend (port `Main.dc.html` prototype to real app +
-      real API + i18n)
+- [x] ~~Step 6 — Guest-facing frontend~~ (done, verified live in a real browser
+      against the real backend, two full scripted flows, zero console errors)
 - [ ] **Step 7** — Admin dashboard frontend (fresh design, same localization pattern)
 - [ ] **Step 8** — Deployment (Oracle Cloud VM, process manager, reverse proxy + TLS)
 - [ ] **Step 9** — QA pass (race conditions, cutoff boundaries, i18n, financial totals)
@@ -39,5 +39,4 @@ Remember to close the tunnel when done.
       `npm run create-admin -- <username> <password>` against the VM's Postgres.
 
 ## Current next step
-➡️ **Step 6 — Guest-facing frontend** (port the `Main.dc.html` prototype to a real
-React app wired to the Step 3 API).
+➡️ **Step 7 — Admin dashboard frontend**.

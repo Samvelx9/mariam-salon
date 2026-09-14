@@ -155,3 +155,43 @@
   didn't include `customer_name`/`customer_phone`, so the notification would have sent
   with missing customer details — fixed by attaching them onto the object passed to
   `notifyTelegram`.
+
+## Step 6 — Guest-facing frontend ✅
+- Full React port of `Main.dc.html`'s guest flow: `client-guest/src/` — one component
+  per screen (services, calendar, details, confirmation, lookup, bookingsList, manage,
+  reschedulePicker, cancelConfirm, cancelled), a `useBookingFlow` hook holding all
+  state/API calls (mirrors the prototype's `renderVals()` pattern), shared pieces
+  (`Header`, `LangSwitcher`, `SlotPicker`, `SummaryBanner`, `ErrorBanner`)
+- Real API wiring throughout — no more mock `SERVICES`/`SLOTS_BY_DAY`/
+  `MOCK_UPCOMING_BOOKINGS` arrays; every screen transition hits the real Step 3 API
+- i18n: same `STRINGS` dict (en/ru/hy, ru default) ported into `i18n.js`, same flag
+  switcher on every screen, `Intl`/`toLocaleString`-based date/price formatting kept
+- Visual design ported faithfully (oklch sage/terracotta/cream palette, Newsreader +
+  Karla fonts, same layout/spacing) but responsive instead of a fixed 390×844 frame —
+  centered column, full height, works down to phone width
+- Two intentional departures from the prototype, both because the underlying feature
+  doesn't exist: dropped the "SMS confirmation" phrasing in the details caption and
+  confirmation message (no SMS is actually sent — replaced with accurate copy), added
+  translated empty-state/error copy the mock never needed (`noBookingsFound`,
+  `slotTaken`, `tooSoon`, `genericError`, `loading`)
+- **Verified live in a real headless browser** (Playwright, installed to the
+  scratchpad only, removed afterward) against the real backend + real Postgres +
+  real Telegram bot, two full scripted runs:
+  - New-booking path: services → language switch → calendar → details (including the
+    empty-fields validation error) → confirm → confirmation → cancel → cancelled.
+    9/9 checks passed, zero console errors
+  - Lookup path: lookup (including empty-phone validation) → bookings list → manage →
+    reschedule picker → confirm new time → back on manage → cancel → cancelled. 9/9
+    checks passed, zero console errors
+  - All test bookings cleaned from the database afterward (each test booking did
+    trigger real Telegram notifications to Mariam, as designed)
+- **Two real bugs found and fixed via this testing, not by inspection:**
+  1. The language dropdown on the services screen was clipped almost entirely
+     invisible — it sat inside the decorative header circle's `overflow: hidden`
+     wrapper. Fixed by giving the circle its own dedicated clipping wrapper so the
+     dropdown (a sibling) isn't constrained by it. Confirmed fixed via screenshot.
+  2. (Test-script-only, not an app bug) an initial "no slots ever load" failure
+     turned out to be the test waiting only 500ms before checking, not accounting for
+     Vite's cold on-demand module compile on first navigation to the calendar screen —
+     confirmed the app itself was fine by reproducing with proper `waitForSelector`
+     instead of a fixed sleep.

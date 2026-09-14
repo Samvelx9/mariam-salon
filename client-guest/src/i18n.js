@@ -1,0 +1,207 @@
+export const LANG_ORDER = ['hy', 'ru', 'en'];
+export const LANG_META = {
+  hy: { flag: '🇦🇲', name: 'Հայերեն' },
+  ru: { flag: '🇷🇺', name: 'Русский' },
+  en: { flag: '🇬🇧', name: 'English' },
+};
+export const LOCALE_TAG = { hy: 'hy-AM', ru: 'ru-RU', en: 'en-US' };
+export const DEFAULT_LANG = 'ru';
+
+export const WEEKDAY_SHORT = {
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  ru: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+  hy: ['Կիր', 'Երկ', 'Երք', 'Չրք', 'Հնգ', 'Ուրբ', 'Շաբ'],
+};
+export const TODAY_TMRW = {
+  en: { today: 'Today', tomorrow: 'Tmrw' },
+  ru: { today: 'Сегодня', tomorrow: 'Завтра' },
+  hy: { today: 'Այսօր', tomorrow: 'Վաղը' },
+};
+
+export const STRINGS = {
+  en: {
+    brandName: "Mariam's Studio",
+    tagline: 'Waxing & sugaring, done gently.',
+    manageLink: 'Already booked? Manage your booking',
+    step1of3: 'Step 1 of 3',
+    chooseService: 'Choose a service',
+    continueBtn: 'Continue',
+    pickATime: 'Pick a time',
+    change: 'Change',
+    onlyRealOpenings: 'Only real openings are shown, so every slot here is yours to take.',
+    sameDayNotice: "Same-day bookings need at least 90 minutes' notice.",
+    noOpenings: 'No openings on this day. Try another date above.',
+    yourDetails: 'Your details',
+    edit: 'Edit',
+    nameLabel: 'Name',
+    namePlaceholder: 'Your name',
+    phoneLabel: 'Phone number',
+    formError: 'Please add your name and phone so Mariam can confirm your visit.',
+    detailsCaption: "You can cancel any time, or reschedule up to 90 minutes before your visit.",
+    confirmBookingBtn: 'Confirm booking',
+    allSet: "You're all set!",
+    summaryService: 'Service',
+    summaryWhen: 'When',
+    summaryName: 'Name',
+    summaryPrice: 'Price',
+    reschedule: 'Reschedule',
+    cancelBooking: 'Cancel booking',
+    bookAnother: 'Book another appointment',
+    findYourBooking: 'Find your booking',
+    lookupCaption: "Enter the phone number you booked with and we'll pull up your appointment.",
+    lookupError: 'Enter the phone number you booked with.',
+    findBookingBtn: 'Find booking',
+    yourUpcomingBookings: 'Your upcoming bookings',
+    yourBooking: 'Your booking',
+    done: 'Done',
+    chooseNewTime: 'Choose a new time',
+    confirmNewTime: 'Confirm new time',
+    cancelBookingQ: 'Cancel booking?',
+    cancelWarning: "This can't be undone. Mariam will be notified right away.",
+    yesCancelBooking: 'Yes, cancel booking',
+    noKeepIt: 'No, keep it',
+    bookingCancelled: 'Booking cancelled',
+    cancelledCaption: "No charge, no problem — we've let Mariam know.",
+    bookNewAppointment: 'Book a new appointment',
+    minUnit: 'min',
+    noBookingsFound: 'No upcoming bookings found for this number.',
+    slotTaken: 'Sorry, that slot was just taken. Please pick another time.',
+    tooSoon: 'That time is too close to now. Please pick a later slot.',
+    genericError: 'Something went wrong. Please try again.',
+    loading: 'Loading…',
+    confirmationNotified: "Mariam's been notified — see you then!",
+  },
+  ru: {
+    brandName: 'Студия Мариам',
+    tagline: 'Депиляция воском и сахаром — бережно.',
+    manageLink: 'Уже записаны? Управление записью',
+    step1of3: 'Шаг 1 из 3',
+    chooseService: 'Выберите услугу',
+    continueBtn: 'Продолжить',
+    pickATime: 'Выберите время',
+    change: 'Изменить',
+    onlyRealOpenings: 'Показаны только реальные свободные окна — можно смело записываться.',
+    sameDayNotice: 'Запись на сегодня — не менее чем за 90 минут.',
+    noOpenings: 'На этот день свободных окон нет. Выберите другую дату выше.',
+    yourDetails: 'Ваши данные',
+    edit: 'Изменить',
+    nameLabel: 'Имя',
+    namePlaceholder: 'Ваше имя',
+    phoneLabel: 'Номер телефона',
+    formError: 'Укажите имя и телефон, чтобы Мариам могла подтвердить запись.',
+    detailsCaption: 'Отменить запись можно в любое время, перенести — не позднее чем за 90 минут до визита.',
+    confirmBookingBtn: 'Подтвердить запись',
+    allSet: 'Всё готово!',
+    summaryService: 'Услуга',
+    summaryWhen: 'Когда',
+    summaryName: 'Имя',
+    summaryPrice: 'Цена',
+    reschedule: 'Перенести',
+    cancelBooking: 'Отменить запись',
+    bookAnother: 'Записаться ещё раз',
+    findYourBooking: 'Найти запись',
+    lookupCaption: 'Введите номер телефона, указанный при записи, и мы найдём вашу запись.',
+    lookupError: 'Введите номер телефона, указанный при записи.',
+    findBookingBtn: 'Найти запись',
+    yourUpcomingBookings: 'Ваши предстоящие записи',
+    yourBooking: 'Ваша запись',
+    done: 'Готово',
+    chooseNewTime: 'Выберите новое время',
+    confirmNewTime: 'Подтвердить новое время',
+    cancelBookingQ: 'Отменить запись?',
+    cancelWarning: 'Это действие нельзя отменить. Мариам сразу узнает об этом.',
+    yesCancelBooking: 'Да, отменить запись',
+    noKeepIt: 'Нет, оставить',
+    bookingCancelled: 'Запись отменена',
+    cancelledCaption: 'Никаких списаний — мы уже сообщили Мариам.',
+    bookNewAppointment: 'Записаться заново',
+    minUnit: 'мин',
+    noBookingsFound: 'Записей на этот номер не найдено.',
+    slotTaken: 'Это время только что заняли. Пожалуйста, выберите другое.',
+    tooSoon: 'Это время слишком скоро. Пожалуйста, выберите более позднее время.',
+    genericError: 'Что-то пошло не так. Попробуйте ещё раз.',
+    loading: 'Загрузка…',
+    confirmationNotified: 'Мариам уже уведомлена — до встречи!',
+  },
+  hy: {
+    brandName: 'Մարիամի ստուդիա',
+    tagline: 'Մոմով և շաքարով մազահեռացում՝ նուրբ մոտեցմամբ։',
+    manageLink: 'Արդեն գրանցվե՞լ եք։ Կառավարեք ձեր այցը',
+    step1of3: 'Քայլ 1-ը 3-ից',
+    chooseService: 'Ընտրեք ծառայությունը',
+    continueBtn: 'Շարունակել',
+    pickATime: 'Ընտրեք ժամը',
+    change: 'Փոխել',
+    onlyRealOpenings: 'Ցուցադրվում են միայն իրական ազատ ժամերը՝ կարող եք վստահորեն գրանցվել։',
+    sameDayNotice: 'Նույն օրվա գրանցման համար անհրաժեշտ է առնվազն 90 րոպե։',
+    noOpenings: 'Այս օրը ազատ ժամեր չկան։ Ընտրեք այլ ամսաթիվ վերևում։',
+    yourDetails: 'Ձեր տվյալները',
+    edit: 'Փոխել',
+    nameLabel: 'Անուն',
+    namePlaceholder: 'Ձեր անունը',
+    phoneLabel: 'Հեռախոսահամար',
+    formError: 'Խնդրում ենք նշել անունն ու հեռախոսահամարը, որպեսզի Մարիամը հաստատի այցը։',
+    detailsCaption: 'Կարող եք չեղարկել ցանկացած պահի, կամ փոխել ժամը՝ առնվազն 90 րոպե առաջ։',
+    confirmBookingBtn: 'Հաստատել գրանցումը',
+    allSet: 'Ամեն ինչ պատրաստ է!',
+    summaryService: 'Ծառայություն',
+    summaryWhen: 'Ե՞րբ',
+    summaryName: 'Անուն',
+    summaryPrice: 'Գին',
+    reschedule: 'Փոխել ժամը',
+    cancelBooking: 'Չեղարկել գրանցումը',
+    bookAnother: 'Գրանցվել կրկին',
+    findYourBooking: 'Գտնել իմ գրանցումը',
+    lookupCaption: 'Մուտքագրեք գրանցման ժամանակ նշված հեռախոսահամարը, և մենք կգտնենք ձեր այցը։',
+    lookupError: 'Մուտքագրեք գրանցման ժամանակ նշված հեռախոսահամարը։',
+    findBookingBtn: 'Գտնել գրանցումը',
+    yourUpcomingBookings: 'Ձեր առաջիկա գրանցումները',
+    yourBooking: 'Ձեր գրանցումը',
+    done: 'Պատրաստ է',
+    chooseNewTime: 'Ընտրեք նոր ժամ',
+    confirmNewTime: 'Հաստատել նոր ժամը',
+    cancelBookingQ: 'Չեղարկե՞լ գրանցումը',
+    cancelWarning: 'Այս գործողությունը հնարավոր չէ հետարկել։ Մարիամը անմիջապես կտեղեկացվի։',
+    yesCancelBooking: 'Այո, չեղարկել',
+    noKeepIt: 'Ոչ, թողնել',
+    bookingCancelled: 'Գրանցումը չեղարկվեց',
+    cancelledCaption: 'Ոչինչ չի գանձվի․ մենք տեղեկացրել ենք Մարիամին։',
+    bookNewAppointment: 'Գրանցվել նոր այցի',
+    minUnit: 'ր.',
+    noBookingsFound: 'Այս համարով գրանցումներ չեն գտնվել։',
+    slotTaken: 'Այս ժամը հենց նոր զբաղեցվեց։ Խնդրում ենք ընտրել այլ ժամ։',
+    tooSoon: 'Այս ժամը շատ մոտ է հիմա։ Խնդրում ենք ընտրել ավելի ուշ ժամ։',
+    genericError: 'Ինչ-որ բան այն չէ։ Խնդրում ենք փորձել կրկին։',
+    loading: 'Բեռնվում է…',
+    confirmationNotified: 'Մարիամը տեղեկացված է․ կտեսնվենք',
+  },
+};
+
+export function formatPrice(amount, lang) {
+  return amount.toLocaleString(LOCALE_TAG[lang]) + ' ֏';
+}
+
+// dateStr: 'YYYY-MM-DD'. Constructed from explicit parts (not `new Date(dateStr)`)
+// so the viewer's browser timezone can't shift which calendar day this represents —
+// the date is already a Yerevan-local calendar day computed by the server.
+export function parseLocalDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function formatDateAt(dateObj, time, lang) {
+  const dateStr = dateObj.toLocaleDateString(LOCALE_TAG[lang], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+  if (lang === 'ru') return dateStr + ', в ' + time;
+  if (lang === 'hy') return dateStr + ', ժամը ' + time;
+  return dateStr + ' at ' + time;
+}
+
+export function dayLabel(dateObj, index, lang) {
+  if (index === 0) return TODAY_TMRW[lang].today;
+  if (index === 1) return TODAY_TMRW[lang].tomorrow;
+  return WEEKDAY_SHORT[lang][dateObj.getDay()];
+}
