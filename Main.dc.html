@@ -1,0 +1,1011 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,500&family=Karla:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --bg: oklch(97% 0.015 85);
+      --surface: oklch(99% 0.008 85);
+      --ink: oklch(27% 0.02 90);
+      --muted: oklch(53% 0.02 90);
+      --sage: oklch(52% 0.07 155);
+      --sage-light: oklch(91% 0.035 150);
+      --terracotta: oklch(60% 0.13 45);
+      --terracotta-light: oklch(93% 0.035 50);
+      --line: oklch(89% 0.012 85);
+      --white: oklch(99% 0 0);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Karla', sans-serif; }
+    h1, h2, h3 { font-family: 'Newsreader', serif; margin: 0; }
+    a { color: var(--sage); text-decoration: none; }
+    a:hover { color: var(--terracotta); }
+    button { font-family: 'Karla', sans-serif; cursor: pointer; border: none; background: none; }
+    input { font-family: 'Karla', sans-serif; }
+    .scrollarea { scrollbar-width: none; -ms-overflow-style: none; }
+    .scrollarea::-webkit-scrollbar { width: 0; height: 0; }
+  </style>
+</helmet>
+
+<div class="app" style="width:390px;height:844px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;position:relative;color:var(--ink);">
+
+  <!-- ============ SERVICES ============ -->
+  <sc-if value="{{isServicesStep}}" hint-placeholder-val="{{true}}">
+    <div class="scrollarea" style="flex:1;overflow-y:auto;">
+      <div style="position:relative;padding:36px 24px 8px;overflow:hidden;">
+        <div style="position:absolute;top:-60px;right:-50px;width:180px;height:180px;border-radius:50%;background:var(--sage-light);opacity:0.6;"></div>
+        <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="stroke:var(--sage);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M12 21C12 21 4 17 4 9C4 5 7 3 12 3C17 3 20 5 20 9C20 17 12 21 12 21Z"></path><path d="M12 21V9"></path></svg>
+            <h2 style="font-size:22px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{strings.brandName}}</h2>
+          </div>
+          <div style="position:relative;flex-shrink:0;">
+            <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--white);">
+              <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+            </button>
+            <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+              <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+                <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+                  <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                    <span style="font-size:16px;">{{lo.flag}}</span>
+                    <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+        <p style="position:relative;margin:6px 0 0;font-size:13px;color:var(--muted);">{{strings.tagline}}</p>
+      </div>
+
+      <div style="padding:12px 24px 4px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:11px;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;">{{strings.step1of3}}</span>
+        <div style="display:flex;gap:6px;">
+          <div style="width:6px;height:6px;border-radius:50%;background:{{dot1Bg}};"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:{{dot2Bg}};"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:{{dot3Bg}};"></div>
+        </div>
+      </div>
+
+      <div style="padding:2px 24px 4px;text-align:center;">
+        <a href="#" onClick="{{goToLookup}}" style="font-size:12.5px;font-weight:600;">{{strings.manageLink}}</a>
+      </div>
+
+      <div style="padding:12px 24px 8px;">
+        <h3 style="font-size:19px;font-weight:500;">{{strings.chooseService}}</h3>
+      </div>
+
+      <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:10px;">
+        <sc-for list="{{services}}" as="s" hint-placeholder-count="5">
+          <button onClick="{{s.onPick}}" style="text-align:left;width:100%;padding:16px;border-radius:16px;border:{{s.cardBorder}};background:{{s.cardBg}};display:flex;align-items:center;justify-content:space-between;gap:12px;transition:background 0.15s ease;">
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-family:'Newsreader',serif;font-size:16px;color:var(--ink);">{{s.name}}</span>
+              <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7V12L15.5 14"></path></svg>
+                {{s.durationLabel}}
+              </span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+              <span style="font-size:14px;font-weight:600;color:var(--terracotta);">{{s.priceLabel}}</span>
+              <div style="width:20px;height:20px;border-radius:50%;border:{{s.radioBorder}};background:{{s.radioBg}};flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+                <sc-if value="{{s.selected}}" hint-placeholder-val="{{false}}">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="stroke:var(--white);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;"><path d="M5 13L9.5 17.5L19 7"></path></svg>
+                </sc-if>
+              </div>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+
+    <sc-if value="{{hasSelectedService}}" hint-placeholder-val="{{false}}">
+      <div style="padding:14px 24px 20px;border-top:1px solid var(--line);background:var(--surface);">
+        <button onClick="{{continueToCalendar}}" style="width:100%;padding:16px;border-radius:999px;background:var(--sage);color:var(--white);font-size:15px;font-weight:600;">{{strings.continueBtn}}</button>
+      </div>
+    </sc-if>
+  </sc-if>
+
+  <!-- ============ CALENDAR ============ -->
+  <sc-if value="{{isCalendarStep}}" hint-placeholder-val="{{false}}">
+    <div style="padding:20px 24px 12px;display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button onClick="{{backToServices}}" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="stroke:var(--ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M15 6L9 12L15 18"></path></svg>
+        </button>
+        <h3 style="font-size:18px;font-weight:500;flex:1;min-width:0;">{{strings.pickATime}}</h3>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <div style="width:6px;height:6px;border-radius:50%;background:{{dot1Bg}};"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:{{dot2Bg}};"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:{{dot3Bg}};"></div>
+        </div>
+        <div style="position:relative;flex-shrink:0;">
+          <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);">
+            <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+          </button>
+          <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+            <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+              <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+                <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                  <span style="font-size:16px;">{{lo.flag}}</span>
+                  <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <span style="font-size:14px;font-weight:500;">{{serviceSummaryName}}</span>
+          <span style="font-size:12px;color:var(--muted);">{{serviceSummaryMeta}}</span>
+        </div>
+        <a href="#" onClick="{{backToServices}}" style="font-size:12px;font-weight:600;">{{strings.change}}</a>
+      </div>
+    </div>
+
+    <div class="scrollarea" style="flex:1;overflow-y:auto;padding:4px 0 8px;">
+      <div style="display:flex;gap:8px;overflow-x:auto;padding:8px 24px 4px;" class="scrollarea">
+        <sc-for list="{{dates}}" as="d" hint-placeholder-count="7">
+          <button onClick="{{d.onPick}}" style="flex-shrink:0;min-width:48px;padding:10px 8px;border-radius:14px;border:{{d.pillBorder}};background:{{d.pillBg}};display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <span style="font-size:11px;color:{{d.pillColor}};opacity:0.8;white-space:nowrap;">{{d.label}}</span>
+            <span style="font-size:15px;font-weight:600;color:{{d.pillColor}};">{{d.dayNum}}</span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="padding:18px 24px 8px;">
+        <span style="font-size:13px;color:var(--muted);">{{strings.onlyRealOpenings}}</span>
+      </div>
+
+      <sc-if value="{{isTodaySelected}}" hint-placeholder-val="{{false}}">
+        <div style="padding:0 24px 8px;">
+          <span style="font-size:12.5px;color:var(--muted);font-style:italic;">{{strings.sameDayNotice}}</span>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{hasSlotsForDate}}" hint-placeholder-val="{{true}}">
+        <div style="padding:4px 24px 24px;display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:10px;">
+          <sc-for list="{{slots}}" as="t" hint-placeholder-count="6">
+            <button onClick="{{t.onPick}}" style="padding:12px 0;border-radius:12px;border:{{t.slotBorder}};background:{{t.slotBg}};font-size:14px;font-weight:500;color:{{t.slotColor}};">{{t.time}}</button>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{noSlotsForDate}}" hint-placeholder-val="{{false}}">
+        <div style="margin:8px 24px 24px;padding:24px;border-radius:16px;background:var(--surface);border:1px dashed var(--line);text-align:center;">
+          <span style="font-size:14px;color:var(--muted);">{{strings.noOpenings}}</span>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{hasSelectedSlot}}" hint-placeholder-val="{{false}}">
+      <div style="padding:14px 24px 20px;border-top:1px solid var(--line);background:var(--surface);">
+        <button onClick="{{continueToDetails}}" style="width:100%;padding:16px;border-radius:999px;background:var(--sage);color:var(--white);font-size:15px;font-weight:600;">{{strings.continueBtn}}</button>
+      </div>
+    </sc-if>
+  </sc-if>
+
+  <!-- ============ DETAILS ============ -->
+  <sc-if value="{{isDetailsStep}}" hint-placeholder-val="{{false}}">
+    <div style="padding:20px 24px 12px;display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button onClick="{{backToCalendar}}" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="stroke:var(--ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M15 6L9 12L15 18"></path></svg>
+        </button>
+        <h3 style="font-size:18px;font-weight:500;flex:1;min-width:0;">{{strings.yourDetails}}</h3>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <div style="width:6px;height:6px;border-radius:50%;background:{{dot1Bg}};"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:{{dot2Bg}};"></div>
+          <div style="width:6px;height:6px;border-radius:50%;background:{{dot3Bg}};"></div>
+        </div>
+        <div style="position:relative;flex-shrink:0;">
+          <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);">
+            <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+          </button>
+          <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+            <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+              <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+                <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                  <span style="font-size:16px;">{{lo.flag}}</span>
+                  <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <span style="font-size:14px;font-weight:500;">{{serviceSummaryName}}</span>
+          <span style="font-size:12px;color:var(--muted);">{{dateTimeSummary}}</span>
+        </div>
+        <a href="#" onClick="{{backToCalendar}}" style="font-size:12px;font-weight:600;">{{strings.edit}}</a>
+      </div>
+    </div>
+
+    <div class="scrollarea" style="flex:1;overflow-y:auto;padding:6px 24px;">
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px;">
+        <label style="font-size:12px;color:var(--muted);">{{strings.nameLabel}}</label>
+        <input type="text" value="{{name}}" onChange="{{onNameChange}}" placeholder="{{strings.namePlaceholder}}" style="padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:15px;color:var(--ink);"/>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <label style="font-size:12px;color:var(--muted);">{{strings.phoneLabel}}</label>
+        <input type="tel" value="{{phone}}" onChange="{{onPhoneChange}}" placeholder="+374 xx xxx xxx" style="padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:15px;color:var(--ink);"/>
+      </div>
+
+      <sc-if value="{{formError}}" hint-placeholder-val="{{false}}">
+        <p style="margin:14px 0 0;font-size:12.5px;color:var(--terracotta);">{{strings.formError}}</p>
+      </sc-if>
+
+      <p style="margin:20px 0 0;font-size:12.5px;color:var(--muted);line-height:1.5;">{{strings.detailsCaption}}</p>
+    </div>
+
+    <div style="padding:14px 24px 20px;border-top:1px solid var(--line);background:var(--surface);">
+      <button onClick="{{confirmBooking}}" style="width:100%;padding:16px;border-radius:999px;background:var(--sage);color:var(--white);font-size:15px;font-weight:600;">{{strings.confirmBookingBtn}}</button>
+    </div>
+  </sc-if>
+
+  <!-- ============ CONFIRMATION ============ -->
+  <sc-if value="{{isConfirmationStep}}" hint-placeholder-val="{{false}}">
+    <div style="padding:16px 24px 0;display:flex;justify-content:flex-end;position:relative;z-index:2;">
+      <div style="position:relative;">
+        <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--white);">
+          <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+        </button>
+        <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+          <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+            <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+              <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                <span style="font-size:16px;">{{lo.flag}}</span>
+                <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+    <div class="scrollarea" style="flex:1;overflow-y:auto;padding:24px 24px 24px;position:relative;">
+      <div style="position:absolute;top:-54px;left:50%;transform:translateX(-50%);width:260px;height:260px;border-radius:50%;background:var(--sage-light);opacity:0.55;z-index:0;"></div>
+      <div style="position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" style="stroke:var(--sage);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><circle cx="12" cy="12" r="9.4"></circle><path d="M8 12.4L10.5 15L16 9"></path></svg>
+        <div>
+          <h2 style="font-size:24px;font-weight:500;">{{strings.allSet}}</h2>
+          <p style="margin:8px 0 0;font-size:13.5px;color:var(--muted);">{{confirmationMessage}}</p>
+        </div>
+
+        <div style="width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="font-size:13px;color:var(--muted);">{{strings.summaryService}}</span>
+            <span style="font-size:13px;font-weight:600;">{{serviceSummaryName}}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="font-size:13px;color:var(--muted);">{{strings.summaryWhen}}</span>
+            <span style="font-size:13px;font-weight:600;">{{dateTimeSummary}}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="font-size:13px;color:var(--muted);">{{strings.summaryName}}</span>
+            <span style="font-size:13px;font-weight:600;">{{name}}</span>
+          </div>
+          <div style="height:1px;background:var(--line);margin:2px 0;"></div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="font-size:13px;color:var(--muted);">{{strings.summaryPrice}}</span>
+            <span style="font-size:14px;font-weight:700;color:var(--terracotta);">{{serviceSummaryPrice}}</span>
+          </div>
+        </div>
+
+        <div style="width:100%;display:flex;gap:10px;">
+          <button onClick="{{goRescheduleFromConfirmation}}" style="flex:1;padding:14px;border-radius:999px;border:1.5px solid var(--sage);background:none;color:var(--sage);font-size:14px;font-weight:600;">{{strings.reschedule}}</button>
+          <button onClick="{{goCancelFromConfirmation}}" style="flex:1;padding:14px;border-radius:999px;border:1.5px solid var(--terracotta);background:none;color:var(--terracotta);font-size:14px;font-weight:600;">{{strings.cancelBooking}}</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:14px 24px 20px;border-top:1px solid var(--line);background:var(--surface);">
+      <button onClick="{{bookAnother}}" style="width:100%;padding:16px;border-radius:999px;background:none;border:1.5px solid var(--line);color:var(--muted);font-size:14px;font-weight:600;">{{strings.bookAnother}}</button>
+    </div>
+  </sc-if>
+
+  <!-- ============ LOOKUP (find an existing booking) ============ -->
+  <sc-if value="{{isLookupStep}}" hint-placeholder-val="{{false}}">
+    <div style="padding:20px 24px 12px;display:flex;align-items:center;gap:12px;">
+      <button onClick="{{backToServices}}" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="stroke:var(--ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M15 6L9 12L15 18"></path></svg>
+      </button>
+      <h3 style="font-size:18px;font-weight:500;flex:1;min-width:0;">{{strings.findYourBooking}}</h3>
+      <div style="position:relative;flex-shrink:0;">
+        <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);">
+          <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+        </button>
+        <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+          <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+            <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+              <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                <span style="font-size:16px;">{{lo.flag}}</span>
+                <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div class="scrollarea" style="flex:1;overflow-y:auto;padding:6px 24px;">
+      <p style="margin:0 0 18px;font-size:13.5px;color:var(--muted);line-height:1.5;">{{strings.lookupCaption}}</p>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <label style="font-size:12px;color:var(--muted);">{{strings.phoneLabel}}</label>
+        <input type="tel" value="{{lookupPhone}}" onChange="{{onLookupPhoneChange}}" placeholder="+374 xx xxx xxx" style="padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:15px;color:var(--ink);"/>
+      </div>
+      <sc-if value="{{lookupError}}" hint-placeholder-val="{{false}}">
+        <p style="margin:14px 0 0;font-size:12.5px;color:var(--terracotta);">{{strings.lookupError}}</p>
+      </sc-if>
+    </div>
+
+    <div style="padding:14px 24px 20px;border-top:1px solid var(--line);background:var(--surface);">
+      <button onClick="{{findBooking}}" style="width:100%;padding:16px;border-radius:999px;background:var(--sage);color:var(--white);font-size:15px;font-weight:600;">{{strings.findBookingBtn}}</button>
+    </div>
+  </sc-if>
+
+  <!-- ============ BOOKINGS LIST (all upcoming bookings for this phone) ============ -->
+  <sc-if value="{{isBookingsListStep}}" hint-placeholder-val="{{false}}">
+    <div style="padding:20px 24px 12px;display:flex;align-items:center;gap:12px;">
+      <button onClick="{{backToLookup}}" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="stroke:var(--ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M15 6L9 12L15 18"></path></svg>
+      </button>
+      <h3 style="font-size:18px;font-weight:500;flex:1;min-width:0;">{{strings.yourUpcomingBookings}}</h3>
+      <div style="position:relative;flex-shrink:0;">
+        <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);">
+          <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+        </button>
+        <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+          <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+            <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+              <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                <span style="font-size:16px;">{{lo.flag}}</span>
+                <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div class="scrollarea" style="flex:1;overflow-y:auto;padding:6px 24px 24px;display:flex;flex-direction:column;gap:10px;">
+      <sc-for list="{{bookings}}" as="b" hint-placeholder-count="2">
+        <button onClick="{{b.onPick}}" style="text-align:left;width:100%;padding:16px;border-radius:16px;border:1px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <span style="font-family:'Newsreader',serif;font-size:16px;">{{b.serviceName}}</span>
+            <span style="font-size:12.5px;color:var(--muted);">{{b.dateTimeLabel}}</span>
+          </div>
+          <span style="font-size:14px;font-weight:600;color:var(--terracotta);flex-shrink:0;">{{b.priceLabel}}</span>
+        </button>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <!-- ============ MANAGE (one booking selected from the list) ============ -->
+  <sc-if value="{{isManageStep}}" hint-placeholder-val="{{false}}">
+    <div style="padding:20px 24px 12px;display:flex;align-items:center;gap:12px;">
+      <button onClick="{{backToBookingsList}}" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="stroke:var(--ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M15 6L9 12L15 18"></path></svg>
+      </button>
+      <h3 style="font-size:18px;font-weight:500;flex:1;min-width:0;">{{strings.yourBooking}}</h3>
+      <div style="position:relative;flex-shrink:0;">
+        <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);">
+          <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+        </button>
+        <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+          <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+            <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+              <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                <span style="font-size:16px;">{{lo.flag}}</span>
+                <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div class="scrollarea" style="flex:1;overflow-y:auto;padding:6px 24px;display:flex;flex-direction:column;gap:16px;">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:13px;color:var(--muted);">{{strings.summaryService}}</span>
+          <span style="font-size:13px;font-weight:600;">{{serviceSummaryName}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:13px;color:var(--muted);">{{strings.summaryWhen}}</span>
+          <span style="font-size:13px;font-weight:600;">{{dateTimeSummary}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:13px;color:var(--muted);">{{strings.summaryName}}</span>
+          <span style="font-size:13px;font-weight:600;">{{name}}</span>
+        </div>
+        <div style="height:1px;background:var(--line);margin:2px 0;"></div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:13px;color:var(--muted);">{{strings.summaryPrice}}</span>
+          <span style="font-size:14px;font-weight:700;color:var(--terracotta);">{{serviceSummaryPrice}}</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button onClick="{{goRescheduleFromManage}}" style="flex:1;padding:14px;border-radius:999px;border:1.5px solid var(--sage);background:none;color:var(--sage);font-size:14px;font-weight:600;">{{strings.reschedule}}</button>
+        <button onClick="{{goCancelFromManage}}" style="flex:1;padding:14px;border-radius:999px;border:1.5px solid var(--terracotta);background:none;color:var(--terracotta);font-size:14px;font-weight:600;">{{strings.cancelBooking}}</button>
+      </div>
+    </div>
+
+    <div style="padding:14px 24px 20px;border-top:1px solid var(--line);background:var(--surface);">
+      <button onClick="{{bookAnother}}" style="width:100%;padding:16px;border-radius:999px;background:var(--sage);color:var(--white);font-size:15px;font-weight:600;">{{strings.done}}</button>
+    </div>
+  </sc-if>
+
+  <!-- ============ RESCHEDULE PICKER (reuses the live slot picker) ============ -->
+  <sc-if value="{{isReschedulePickerStep}}" hint-placeholder-val="{{false}}">
+    <div style="padding:20px 24px 12px;display:flex;align-items:center;gap:12px;">
+      <button onClick="{{backFromSubflow}}" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="stroke:var(--ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M15 6L9 12L15 18"></path></svg>
+      </button>
+      <h3 style="font-size:18px;font-weight:500;flex:1;min-width:0;">{{strings.chooseNewTime}}</h3>
+      <div style="position:relative;flex-shrink:0;">
+        <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);">
+          <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+        </button>
+        <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+          <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+            <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+              <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                <span style="font-size:16px;">{{lo.flag}}</span>
+                <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div class="scrollarea" style="flex:1;overflow-y:auto;padding:4px 0 8px;">
+      <div style="display:flex;gap:8px;overflow-x:auto;padding:8px 24px 4px;" class="scrollarea">
+        <sc-for list="{{dates}}" as="d" hint-placeholder-count="7">
+          <button onClick="{{d.onPick}}" style="flex-shrink:0;min-width:48px;padding:10px 8px;border-radius:14px;border:{{d.pillBorder}};background:{{d.pillBg}};display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <span style="font-size:11px;color:{{d.pillColor}};opacity:0.8;white-space:nowrap;">{{d.label}}</span>
+            <span style="font-size:15px;font-weight:600;color:{{d.pillColor}};">{{d.dayNum}}</span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="padding:18px 24px 8px;">
+        <span style="font-size:13px;color:var(--muted);">{{strings.onlyRealOpenings}}</span>
+      </div>
+
+      <sc-if value="{{isTodaySelected}}" hint-placeholder-val="{{false}}">
+        <div style="padding:0 24px 8px;">
+          <span style="font-size:12.5px;color:var(--muted);font-style:italic;">{{strings.sameDayNotice}}</span>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{hasSlotsForDate}}" hint-placeholder-val="{{true}}">
+        <div style="padding:4px 24px 24px;display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:10px;">
+          <sc-for list="{{slots}}" as="t" hint-placeholder-count="6">
+            <button onClick="{{t.onPick}}" style="padding:12px 0;border-radius:12px;border:{{t.slotBorder}};background:{{t.slotBg}};font-size:14px;font-weight:500;color:{{t.slotColor}};">{{t.time}}</button>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{noSlotsForDate}}" hint-placeholder-val="{{false}}">
+        <div style="margin:8px 24px 24px;padding:24px;border-radius:16px;background:var(--surface);border:1px dashed var(--line);text-align:center;">
+          <span style="font-size:14px;color:var(--muted);">{{strings.noOpenings}}</span>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{hasSelectedSlot}}" hint-placeholder-val="{{false}}">
+      <div style="padding:14px 24px 20px;border-top:1px solid var(--line);background:var(--surface);">
+        <button onClick="{{backFromSubflow}}" style="width:100%;padding:16px;border-radius:999px;background:var(--sage);color:var(--white);font-size:15px;font-weight:600;">{{strings.confirmNewTime}}</button>
+      </div>
+    </sc-if>
+  </sc-if>
+
+  <!-- ============ CANCEL CONFIRM ============ -->
+  <sc-if value="{{isCancelConfirmStep}}" hint-placeholder-val="{{false}}">
+    <div style="padding:20px 24px 12px;display:flex;align-items:center;gap:12px;">
+      <button onClick="{{backFromSubflow}}" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="stroke:var(--ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M15 6L9 12L15 18"></path></svg>
+      </button>
+      <h3 style="font-size:18px;font-weight:500;flex:1;min-width:0;">{{strings.cancelBookingQ}}</h3>
+      <div style="position:relative;flex-shrink:0;">
+        <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);">
+          <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+        </button>
+        <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+          <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+            <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+              <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                <span style="font-size:16px;">{{lo.flag}}</span>
+                <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div class="scrollarea" style="flex:1;overflow-y:auto;padding:6px 24px;display:flex;flex-direction:column;gap:16px;">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:13px;color:var(--muted);">{{strings.summaryService}}</span>
+          <span style="font-size:13px;font-weight:600;">{{serviceSummaryName}}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:13px;color:var(--muted);">{{strings.summaryWhen}}</span>
+          <span style="font-size:13px;font-weight:600;">{{dateTimeSummary}}</span>
+        </div>
+      </div>
+      <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.5;">{{strings.cancelWarning}}</p>
+    </div>
+
+    <div style="padding:14px 24px 20px;border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:10px;">
+      <button onClick="{{finalizeCancel}}" style="width:100%;padding:16px;border-radius:999px;background:var(--terracotta);color:var(--white);font-size:15px;font-weight:600;">{{strings.yesCancelBooking}}</button>
+      <button onClick="{{backFromSubflow}}" style="width:100%;padding:12px;border-radius:999px;background:none;color:var(--muted);font-size:14px;font-weight:600;">{{strings.noKeepIt}}</button>
+    </div>
+  </sc-if>
+
+  <!-- ============ CANCELLED ============ -->
+  <sc-if value="{{isCancelledStep}}" hint-placeholder-val="{{false}}">
+    <div style="padding:16px 24px 0;display:flex;justify-content:flex-end;position:relative;z-index:2;">
+      <div style="position:relative;">
+        <button onClick="{{toggleLangMenu}}" style="display:flex;align-items:center;gap:3px;padding:6px 9px;border-radius:999px;border:1px solid var(--line);background:var(--white);">
+          <span style="font-size:16px;line-height:1;">{{currentFlag}}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M6 9L12 15L18 9"></path></svg>
+        </button>
+        <sc-if value="{{langMenuOpen}}" hint-placeholder-val="{{false}}">
+          <div style="position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,0.10);z-index:30;min-width:136px;">
+            <sc-for list="{{langOptions}}" as="lo" hint-placeholder-count="3">
+              <button onClick="{{lo.onPick}}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:{{lo.rowBg}};text-align:left;">
+                <span style="font-size:16px;">{{lo.flag}}</span>
+                <span style="font-size:13px;font-weight:{{lo.rowWeight}};color:var(--ink);">{{lo.name}}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+    <div class="scrollarea" style="flex:1;overflow-y:auto;padding:36px 24px 24px;">
+      <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" style="stroke:var(--muted);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><circle cx="12" cy="12" r="9.4"></circle><path d="M9 9L15 15"></path><path d="M15 9L9 15"></path></svg>
+        <div>
+          <h2 style="font-size:24px;font-weight:500;">{{strings.bookingCancelled}}</h2>
+          <p style="margin:8px 0 0;font-size:13.5px;color:var(--muted);">{{strings.cancelledCaption}}</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:14px 24px 20px;border-top:1px solid var(--line);background:var(--surface);">
+      <button onClick="{{bookAnother}}" style="width:100%;padding:16px;border-radius:999px;background:var(--sage);color:var(--white);font-size:15px;font-weight:600;">{{strings.bookNewAppointment}}</button>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script data-dc-script>
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const LANG_ORDER = ['hy', 'ru', 'en'];
+const LANG_META = {
+  hy: { flag: '🇦🇲', name: 'Հայերեն' },
+  ru: { flag: '🇷🇺', name: 'Русский' },
+  en: { flag: '🇬🇧', name: 'English' }
+};
+const LOCALE_TAG = { hy: 'hy-AM', ru: 'ru-RU', en: 'en-US' };
+
+const WEEKDAY_SHORT = {
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  ru: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+  hy: ['Կիր', 'Երկ', 'Երք', 'Չրք', 'Հնգ', 'Ուրբ', 'Շաբ']
+};
+const TODAY_TMRW = {
+  en: { today: 'Today', tomorrow: 'Tmrw' },
+  ru: { today: 'Сегодня', tomorrow: 'Завтра' },
+  hy: { today: 'Այսօր', tomorrow: 'Վաղը' }
+};
+
+const SERVICES = [
+  { id: 'brazilian', duration: 30, price: 12000 },
+  { id: 'fullleg', duration: 45, price: 15000 },
+  { id: 'underarm', duration: 15, price: 5000 },
+  { id: 'brows', duration: 15, price: 4000 },
+  { id: 'sugaring', duration: 30, price: 10000 }
+];
+
+const SERVICE_NAMES = {
+  brazilian: { en: 'Brazilian Wax', ru: 'Бразильская депиляция воском', hy: 'Բրազիլական մոմադեպիլացիա' },
+  fullleg: { en: 'Full Leg Wax', ru: 'Депиляция ног воском', hy: 'Ոտքերի մոմադեպիլացիա' },
+  underarm: { en: 'Underarm Wax', ru: 'Депиляция подмышек воском', hy: 'Անութների մոմադեպիլացիա' },
+  brows: { en: 'Eyebrow Shaping', ru: 'Коррекция бровей', hy: 'Հոնքերի ձևավորում' },
+  sugaring: { en: 'Sugaring — Bikini', ru: 'Шугаринг бикини', hy: 'Շաքարադեպիլացիա՝ բիկինի' }
+};
+
+const SLOTS_BY_DAY = [
+  ['11:00', '11:30', '15:00', '16:30'],
+  ['09:00', '09:30', '10:00', '13:00', '13:30', '14:00', '16:00'],
+  ['09:00', '10:30', '11:00', '13:00', '15:30', '16:00', '16:30'],
+  [],
+  ['09:00', '09:30', '10:00', '10:30', '14:00', '14:30'],
+  ['10:00', '11:00', '13:00', '13:30', '15:00'],
+  ['09:00', '09:30', '13:00', '13:30', '14:00', '14:30', '15:00']
+];
+
+const MOCK_UPCOMING_BOOKINGS = [
+  { id: 'bk1', serviceId: 'fullleg', dayIndex: 4, slot: '14:00', name: 'Anna' },
+  { id: 'bk2', serviceId: 'brows', dayIndex: 6, slot: '13:30', name: 'Anna' }
+];
+
+const STRINGS = {
+  en: {
+    brandName: "Mariam's Studio",
+    tagline: 'Waxing & sugaring, done gently.',
+    manageLink: 'Already booked? Manage your booking',
+    step1of3: 'Step 1 of 3',
+    chooseService: 'Choose a service',
+    continueBtn: 'Continue',
+    pickATime: 'Pick a time',
+    change: 'Change',
+    onlyRealOpenings: 'Only real openings are shown, so every slot here is yours to take.',
+    sameDayNotice: "Same-day bookings need at least 90 minutes' notice.",
+    noOpenings: 'No openings on this day. Try another date above.',
+    yourDetails: 'Your details',
+    edit: 'Edit',
+    nameLabel: 'Name',
+    namePlaceholder: 'Your name',
+    phoneLabel: 'Phone number',
+    formError: 'Please add your name and phone so Mariam can confirm your visit.',
+    detailsCaption: "We'll text a confirmation. You can cancel any time, or reschedule up to 90 minutes before your visit.",
+    confirmBookingBtn: 'Confirm booking',
+    allSet: "You're all set!",
+    summaryService: 'Service',
+    summaryWhen: 'When',
+    summaryName: 'Name',
+    summaryPrice: 'Price',
+    reschedule: 'Reschedule',
+    cancelBooking: 'Cancel booking',
+    bookAnother: 'Book another appointment',
+    findYourBooking: 'Find your booking',
+    lookupCaption: "Enter the phone number you booked with and we'll pull up your appointment.",
+    lookupError: 'Enter the phone number you booked with.',
+    findBookingBtn: 'Find booking',
+    yourUpcomingBookings: 'Your upcoming bookings',
+    yourBooking: 'Your booking',
+    done: 'Done',
+    chooseNewTime: 'Choose a new time',
+    confirmNewTime: 'Confirm new time',
+    cancelBookingQ: 'Cancel booking?',
+    cancelWarning: "This can't be undone. Mariam will be notified right away.",
+    yesCancelBooking: 'Yes, cancel booking',
+    noKeepIt: 'No, keep it',
+    bookingCancelled: 'Booking cancelled',
+    cancelledCaption: "No charge, no problem — we've let Mariam know.",
+    bookNewAppointment: 'Book a new appointment',
+    minUnit: 'min'
+  },
+  ru: {
+    brandName: 'Студия Мариам',
+    tagline: 'Депиляция воском и сахаром — бережно.',
+    manageLink: 'Уже записаны? Управление записью',
+    step1of3: 'Шаг 1 из 3',
+    chooseService: 'Выберите услугу',
+    continueBtn: 'Продолжить',
+    pickATime: 'Выберите время',
+    change: 'Изменить',
+    onlyRealOpenings: 'Показаны только реальные свободные окна — можно смело записываться.',
+    sameDayNotice: 'Запись на сегодня — не менее чем за 90 минут.',
+    noOpenings: 'На этот день свободных окон нет. Выберите другую дату выше.',
+    yourDetails: 'Ваши данные',
+    edit: 'Изменить',
+    nameLabel: 'Имя',
+    namePlaceholder: 'Ваше имя',
+    phoneLabel: 'Номер телефона',
+    formError: 'Укажите имя и телефон, чтобы Мариам могла подтвердить запись.',
+    detailsCaption: 'Мы отправим подтверждение по SMS. Отменить запись можно в любое время, перенести — не позднее чем за 90 минут до визита.',
+    confirmBookingBtn: 'Подтвердить запись',
+    allSet: 'Всё готово!',
+    summaryService: 'Услуга',
+    summaryWhen: 'Когда',
+    summaryName: 'Имя',
+    summaryPrice: 'Цена',
+    reschedule: 'Перенести',
+    cancelBooking: 'Отменить запись',
+    bookAnother: 'Записаться ещё раз',
+    findYourBooking: 'Найти запись',
+    lookupCaption: 'Введите номер телефона, указанный при записи, и мы найдём вашу запись.',
+    lookupError: 'Введите номер телефона, указанный при записи.',
+    findBookingBtn: 'Найти запись',
+    yourUpcomingBookings: 'Ваши предстоящие записи',
+    yourBooking: 'Ваша запись',
+    done: 'Готово',
+    chooseNewTime: 'Выберите новое время',
+    confirmNewTime: 'Подтвердить новое время',
+    cancelBookingQ: 'Отменить запись?',
+    cancelWarning: 'Это действие нельзя отменить. Мариам сразу узнает об этом.',
+    yesCancelBooking: 'Да, отменить запись',
+    noKeepIt: 'Нет, оставить',
+    bookingCancelled: 'Запись отменена',
+    cancelledCaption: 'Никаких списаний — мы уже сообщили Мариам.',
+    bookNewAppointment: 'Записаться заново',
+    minUnit: 'мин'
+  },
+  hy: {
+    brandName: 'Մարիամի ստուդիա',
+    tagline: 'Մոմով և շաքարով մազահեռացում՝ նուրբ մոտեցմամբ։',
+    manageLink: 'Արդեն գրանցվե՞լ եք։ Կառավարեք ձեր այցը',
+    step1of3: 'Քայլ 1-ը 3-ից',
+    chooseService: 'Ընտրեք ծառայությունը',
+    continueBtn: 'Շարունակել',
+    pickATime: 'Ընտրեք ժամը',
+    change: 'Փոխել',
+    onlyRealOpenings: 'Ցուցադրվում են միայն իրական ազատ ժամերը՝ կարող եք վստահորեն գրանցվել։',
+    sameDayNotice: 'Նույն օրվա գրանցման համար անհրաժեշտ է առնվազն 90 րոպե։',
+    noOpenings: 'Այս օրը ազատ ժամեր չկան։ Ընտրեք այլ ամսաթիվ վերևում։',
+    yourDetails: 'Ձեր տվյալները',
+    edit: 'Փոխել',
+    nameLabel: 'Անուն',
+    namePlaceholder: 'Ձեր անունը',
+    phoneLabel: 'Հեռախոսահամար',
+    formError: 'Խնդրում ենք նշել անունն ու հեռախոսահամարը, որպեսզի Մարիամը հաստատի այցը։',
+    detailsCaption: 'Կուղարկենք հաստատում SMS-ով։ Կարող եք չեղարկել ցանկացած պահի, կամ փոխել ժամը՝ առնվազն 90 րոպե առաջ։',
+    confirmBookingBtn: 'Հաստատել գրանցումը',
+    allSet: 'Ամեն ինչ պատրաստ է!',
+    summaryService: 'Ծառայություն',
+    summaryWhen: 'Ե՞րբ',
+    summaryName: 'Անուն',
+    summaryPrice: 'Գին',
+    reschedule: 'Փոխել ժամը',
+    cancelBooking: 'Չեղարկել գրանցումը',
+    bookAnother: 'Գրանցվել կրկին',
+    findYourBooking: 'Գտնել իմ գրանցումը',
+    lookupCaption: 'Մուտքագրեք գրանցման ժամանակ նշված հեռախոսահամարը, և մենք կգտնենք ձեր այցը։',
+    lookupError: 'Մուտքագրեք գրանցման ժամանակ նշված հեռախոսահամարը։',
+    findBookingBtn: 'Գտնել գրանցումը',
+    yourUpcomingBookings: 'Ձեր առաջիկա գրանցումները',
+    yourBooking: 'Ձեր գրանցումը',
+    done: 'Պատրաստ է',
+    chooseNewTime: 'Ընտրեք նոր ժամ',
+    confirmNewTime: 'Հաստատել նոր ժամը',
+    cancelBookingQ: 'Չեղարկե՞լ գրանցումը',
+    cancelWarning: 'Այս գործողությունը հնարավոր չէ հետարկել։ Մարիամը անմիջապես կտեղեկացվի։',
+    yesCancelBooking: 'Այո, չեղարկել',
+    noKeepIt: 'Ոչ, թողնել',
+    bookingCancelled: 'Գրանցումը չեղարկվեց',
+    cancelledCaption: 'Ոչինչ չի գանձվի․ մենք տեղեկացրել ենք Մարիամին։',
+    bookNewAppointment: 'Գրանցվել նոր այցի',
+    minUnit: 'ր.'
+  }
+};
+
+class Component extends DCLogic {
+  formatPrice(n, lang) {
+    return n.toLocaleString(LOCALE_TAG[lang]) + ' ֏';
+  }
+
+  formatDateAt(dateObj, slot, lang) {
+    const dateStr = dateObj.toLocaleDateString(LOCALE_TAG[lang], { weekday: 'short', month: 'short', day: 'numeric' });
+    if (lang === 'ru') return dateStr + ', в ' + slot;
+    if (lang === 'hy') return dateStr + ', ժամը ' + slot;
+    return dateStr + ' at ' + slot;
+  }
+
+  renderVals() {
+    const st = this.state || {};
+    const lang = st.lang || 'ru';
+    const T = STRINGS[lang];
+    const step = st.step || 'services';
+    const selectedServiceId = st.selectedServiceId || null;
+    const selectedDayIndex = st.selectedDayIndex ?? 0;
+    const selectedSlot = st.selectedSlot || null;
+    const name = st.name || '';
+    const phone = st.phone || '';
+    const formError = !!st.formError;
+    const lookupPhone = st.lookupPhone || '';
+    const lookupError = !!st.lookupError;
+    const langMenuOpen = !!st.langMenuOpen;
+
+    const selectedServiceObj = SERVICES.find((s) => s.id === selectedServiceId) || null;
+
+    const services = SERVICES.map((s) => {
+      const selected = s.id === selectedServiceId;
+      return {
+        id: s.id,
+        name: SERVICE_NAMES[s.id][lang],
+        durationLabel: s.duration + ' ' + T.minUnit,
+        priceLabel: this.formatPrice(s.price, lang),
+        selected,
+        cardBorder: selected ? '1.5px solid var(--sage)' : '1px solid var(--line)',
+        cardBg: selected ? 'var(--sage-light)' : 'var(--surface)',
+        radioBorder: selected ? '1.5px solid var(--sage)' : '1.5px solid var(--line)',
+        radioBg: selected ? 'var(--sage)' : 'transparent',
+        onPick: () => this.setState({ selectedServiceId: s.id })
+      };
+    });
+
+    const today = new Date();
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today.getTime() + i * DAY_MS);
+      const selected = i === selectedDayIndex;
+      dates.push({
+        index: i,
+        label: i === 0 ? TODAY_TMRW[lang].today : (i === 1 ? TODAY_TMRW[lang].tomorrow : WEEKDAY_SHORT[lang][d.getDay()]),
+        dayNum: String(d.getDate()),
+        selected,
+        pillBg: selected ? 'var(--sage)' : 'var(--surface)',
+        pillColor: selected ? 'var(--white)' : 'var(--ink)',
+        pillBorder: selected ? '1.5px solid var(--sage)' : '1px solid var(--line)',
+        onPick: () => this.setState({ selectedDayIndex: i, selectedSlot: null })
+      });
+    }
+
+    let daySlots = SLOTS_BY_DAY[selectedDayIndex] || [];
+    if (selectedDayIndex === 0) {
+      const cutoff = new Date(Date.now() + 90 * 60 * 1000);
+      daySlots = daySlots.filter((t) => {
+        const [hh, mm] = t.split(':').map(Number);
+        const slotDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hh, mm);
+        return slotDate.getTime() >= cutoff.getTime();
+      });
+    }
+    const slots = daySlots.map((t) => {
+      const selected = t === selectedSlot;
+      return {
+        time: t,
+        selected,
+        slotBg: selected ? 'var(--terracotta)' : 'var(--surface)',
+        slotColor: selected ? 'var(--white)' : 'var(--ink)',
+        slotBorder: selected ? '1.5px solid var(--terracotta)' : '1px solid var(--line)',
+        onPick: () => this.setState({ selectedSlot: t })
+      };
+    });
+
+    const selectedDateObj = new Date(today.getTime() + selectedDayIndex * DAY_MS);
+    const dateTimeSummary = selectedSlot ? this.formatDateAt(selectedDateObj, selectedSlot, lang) : '';
+    const confirmationMessage = lang === 'ru'
+      ? ('Подтверждение отправлено на ' + phone + '.')
+      : lang === 'hy'
+        ? ('Հաստատումն ուղարկվում է ' + phone + ' համարին։')
+        : ('A confirmation is on its way to ' + phone + '.');
+
+    const bookings = MOCK_UPCOMING_BOOKINGS.map((b) => {
+      const svc = SERVICES.find((s) => s.id === b.serviceId);
+      const bDateObj = new Date(today.getTime() + b.dayIndex * DAY_MS);
+      return {
+        id: b.id,
+        serviceName: svc ? SERVICE_NAMES[svc.id][lang] : '',
+        priceLabel: svc ? this.formatPrice(svc.price, lang) : '',
+        dateTimeLabel: this.formatDateAt(bDateObj, b.slot, lang),
+        onPick: () => this.setState({
+          step: 'manage',
+          selectedServiceId: b.serviceId,
+          selectedDayIndex: b.dayIndex,
+          selectedSlot: b.slot,
+          name: b.name,
+          phone: this.state.lookupPhone
+        })
+      };
+    });
+
+    const langOptions = LANG_ORDER.map((code) => ({
+      code,
+      flag: LANG_META[code].flag,
+      name: LANG_META[code].name,
+      rowBg: code === lang ? 'var(--sage-light)' : 'transparent',
+      rowWeight: code === lang ? '700' : '500',
+      onPick: () => this.setState({ lang: code, langMenuOpen: false })
+    }));
+
+    return {
+      isServicesStep: step === 'services',
+      isCalendarStep: step === 'calendar',
+      isDetailsStep: step === 'details',
+      isConfirmationStep: step === 'confirmation',
+      isLookupStep: step === 'lookup',
+      isBookingsListStep: step === 'bookingsList',
+      isManageStep: step === 'manage',
+      isReschedulePickerStep: step === 'reschedulePicker',
+      isCancelConfirmStep: step === 'cancelConfirm',
+      isCancelledStep: step === 'cancelled',
+
+      dot1Bg: 'var(--sage)',
+      dot2Bg: (step === 'calendar' || step === 'details' || step === 'confirmation') ? 'var(--sage)' : 'var(--line)',
+      dot3Bg: (step === 'details' || step === 'confirmation') ? 'var(--sage)' : 'var(--line)',
+
+      strings: T,
+      currentFlag: LANG_META[lang].flag,
+      langMenuOpen,
+      langOptions,
+
+      services,
+      hasSelectedService: !!selectedServiceId,
+      serviceSummaryName: selectedServiceObj ? SERVICE_NAMES[selectedServiceObj.id][lang] : '',
+      serviceSummaryMeta: selectedServiceObj ? (selectedServiceObj.duration + ' ' + T.minUnit + ' · ' + this.formatPrice(selectedServiceObj.price, lang)) : '',
+      serviceSummaryPrice: selectedServiceObj ? this.formatPrice(selectedServiceObj.price, lang) : '',
+
+      dates,
+      isTodaySelected: selectedDayIndex === 0,
+      hasSlotsForDate: daySlots.length > 0,
+      noSlotsForDate: daySlots.length === 0,
+      slots,
+      hasSelectedSlot: !!selectedSlot,
+      dateTimeSummary,
+      confirmationMessage,
+
+      name,
+      phone,
+      formError,
+      lookupPhone,
+      lookupError,
+      bookings,
+
+      toggleLangMenu: () => this.setState({ langMenuOpen: !this.state.langMenuOpen }),
+
+      continueToCalendar: () => this.setState({ step: 'calendar' }),
+      backToServices: () => this.setState({ step: 'services' }),
+      continueToDetails: () => this.setState({ step: 'details' }),
+      backToCalendar: () => this.setState({ step: 'calendar' }),
+      onNameChange: (e) => this.setState({ name: e.target.value, formError: false }),
+      onPhoneChange: (e) => this.setState({ phone: e.target.value, formError: false }),
+      confirmBooking: () => {
+        if (!this.state.name || !this.state.name.trim() || !this.state.phone || !this.state.phone.trim()) {
+          this.setState({ formError: true });
+          return;
+        }
+        const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+        this.setState({ step: 'confirmation', confirmationCode: code, formError: false });
+      },
+      bookAnother: () => this.setState({
+        step: 'services',
+        selectedServiceId: null,
+        selectedDayIndex: 0,
+        selectedSlot: null,
+        name: '',
+        phone: '',
+        formError: false,
+        confirmationCode: '',
+        lookupPhone: '',
+        lookupError: false,
+        manageOrigin: null,
+        langMenuOpen: false
+      }),
+
+      goToLookup: () => this.setState({ step: 'lookup', lookupPhone: '', lookupError: false }),
+      onLookupPhoneChange: (e) => this.setState({ lookupPhone: e.target.value, lookupError: false }),
+      findBooking: () => {
+        if (!this.state.lookupPhone || !this.state.lookupPhone.trim()) {
+          this.setState({ lookupError: true });
+          return;
+        }
+        this.setState({ step: 'bookingsList' });
+      },
+      backToLookup: () => this.setState({ step: 'lookup' }),
+      backToBookingsList: () => this.setState({ step: 'bookingsList' }),
+
+      goRescheduleFromConfirmation: () => this.setState({ step: 'reschedulePicker', manageOrigin: 'confirmation' }),
+      goRescheduleFromManage: () => this.setState({ step: 'reschedulePicker', manageOrigin: 'manage' }),
+      goCancelFromConfirmation: () => this.setState({ step: 'cancelConfirm', manageOrigin: 'confirmation' }),
+      goCancelFromManage: () => this.setState({ step: 'cancelConfirm', manageOrigin: 'manage' }),
+      backFromSubflow: () => this.setState({ step: this.state.manageOrigin === 'manage' ? 'manage' : 'confirmation' }),
+      finalizeCancel: () => this.setState({ step: 'cancelled' })
+    };
+  }
+}
+</script>
+</body>
+</html>
