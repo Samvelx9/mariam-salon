@@ -61,3 +61,36 @@
 - Services table stores per-language names (`name_en` / `name_ru` / `name_hy`) since
   the plan's localization section calls out service names explicitly, matching the
   prototype's `SERVICE_NAMES` structure in `Main.dc.html`
+
+## Step 3 — Guest-facing API ✅
+- `GET /api/services` — active services with per-language names
+- `GET /api/services/:id/slots` — open slots over the next 7 days (weekly hours minus
+  date blocks minus existing non-cancelled bookings minus the 90-min cutoff), always
+  computed fresh, no caching. Supports `?excludeBookingId=` for the reschedule picker
+  so a booking's own current slot doesn't count as "taken by itself"
+- `POST /api/bookings` — create; 90-min cutoff, availability check, and the DB
+  `EXCLUDE` constraint as the double-booking safeguard of last resort (caught and
+  turned into a friendly `409 slot_taken`)
+- `POST /api/bookings/lookup` — upcoming (non-cancelled, non-completed, future)
+  bookings for a phone number
+- `POST /api/bookings/:id/cancel` — no cutoff, idempotency-safe (409 if already
+  cancelled)
+- `POST /api/bookings/:id/reschedule` — same cutoff/availability/overlap rules as
+  create, via `UPDATE` (Postgres `EXCLUDE` constraints don't self-conflict, so this
+  works correctly without extra logic)
+- Armenia (Asia/Yerevan) has a fixed UTC+4 offset with no DST since 2011, so all local
+  ↔ UTC conversion uses a small constant-offset helper (`server/src/lib/time.js`)
+  instead of a timezone library
+- Telegram notifications stubbed as a no-op (`server/src/services/telegram.js`),
+  called from create/cancel — real implementation is Step 5
+- Fixed a real gap found while testing: the `EXCLUDE` constraint only prevents
+  double-booking, it does **not** stop a booking outside working hours or during a
+  blocked date/window. Added `isSlotWithinAvailability()` as an explicit app-layer
+  check on create/reschedule (confirmed via a live test: a Sunday booking was wrongly
+  accepted before the fix, correctly rejected after)
+- Verified end-to-end against the real Postgres on the VM (via a temporary SSH tunnel
+  + a freshly-rotated `mariam_app` password used only for local dev — the original
+  password was never read back into this sandbox): create, cutoff rejection, overlap
+  rejection (`409 slot_taken`), phone lookup, reschedule, cancel, idempotent
+  double-cancel (409), reschedule of a cancelled booking (409), reschedule of a
+  missing booking (404). All test rows cleaned up afterward.

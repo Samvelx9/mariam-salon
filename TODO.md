@@ -14,11 +14,7 @@ prompt text behind each step below.
 
 ## Remaining build steps
 - [x] ~~Step 2 — Database schema & migrations~~ (done, verified against real data)
-- [ ] **Step 3** — Guest-facing API (services, slots, create/lookup/cancel/reschedule
-      booking, 90-min cutoff). Note: needs a way to reach the VM's Postgres from
-      wherever the API runs during dev — either an SSH tunnel from this sandbox
-      (`ssh -L 5433:127.0.0.1:5432 oracle-server`) or running/testing the API on the
-      VM directly. Decide this when starting Step 3.
+- [x] ~~Step 3 — Guest-facing API~~ (done, verified end-to-end against real data)
 - [ ] **Step 4** — Admin API (auth, services CRUD, availability, bookings status
       changes, expenses + autocomplete, financial aggregation)
 - [ ] **Step 5** — Telegram notifications (bot setup, wire into booking create/cancel)
@@ -32,5 +28,11 @@ prompt text behind each step below.
 - [ ] Repeat client tracking by phone number — decide if wanted (not currently planned)
 - [ ] Full API endpoint list — gets nailed down as part of Steps 3 & 4
 
+## Dev workflow note
+For local iteration against the real VM database: open a tunnel with
+`ssh -N -L 5433:127.0.0.1:5432 oracle-server &`, then `npm run dev:server` — 
+`server/.env` (gitignored) already points `DATABASE_URL` through that tunnel port.
+Remember to close the tunnel when done.
+
 ## Current next step
-➡️ **Step 3 — Guest-facing API**.
+➡️ **Step 4 — Admin API**.
