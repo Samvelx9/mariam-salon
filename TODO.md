@@ -3,9 +3,14 @@
 See `DONE.md` for what's already finished, and `build-roadmap-prompts.md` for the full
 prompt text behind each step below.
 
-## Open decision (blocks Step 2)
-- [ ] Where should Postgres run for development — locally, or on the Oracle Cloud VM
-      mentioned in the plan? (This sandbox has no local Postgres/Docker available.)
+## Resolved decisions
+- ~~Where should Postgres run for dev?~~ → **Oracle Cloud VM**, via Docker Compose
+  (`/opt/postgres` on `oracle-server`). Bound to `127.0.0.1:5432` only — reaching it
+  from outside the VM (e.g. to run migrations from this sandbox) needs an SSH tunnel,
+  or migrations get run directly on the VM.
+- ~~Final production domain~~ → still open: `mariamik.info` currently running on the
+  VM is a **placeholder**, not the final domain. TLS setup is deferred until the real
+  domain is known (Step 8).
 
 ## Remaining build steps
 - [ ] **Step 2** — Database schema & migrations (services, availability, bookings,
@@ -26,4 +31,5 @@ prompt text behind each step below.
 - [ ] Full API endpoint list — gets nailed down as part of Steps 3 & 4
 
 ## Current next step
-➡️ **Step 2 — Database schema & migrations**, once the Postgres target is decided.
+➡️ **Step 2 — Database schema & migrations**, targeting the Postgres instance now
+running on `oracle-server` (via an SSH tunnel or run directly on the VM).

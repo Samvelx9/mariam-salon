@@ -24,3 +24,22 @@
 ## Repo hosting
 - Created public GitHub repo: https://github.com/Samvelx9/mariam-salon
 - Pushed initial scaffold (codebase + planning docs, no `.env`, no client/customer data)
+
+## Oracle Cloud VM prep (`oracle-server`, 158.101.169.222, Ubuntu 24.04 aarch64)
+- Confirmed already present: Docker 29.8.0 + Docker Compose v5.5.1, git
+- Found pre-existing infra: an `nginx:stable-alpine` container (compose project at
+  `/opt/nginx-setup`) serving a placeholder page for **mariamik.info** (DNS already
+  points here) — HTTP only, HTTPS block prepared but commented out, no cert yet
+- **PostgreSQL 16 (alpine) deployed via Docker Compose** at `/opt/postgres/` on the VM:
+  - `docker-compose.yml` + `.env` (credentials — `POSTGRES_USER=mariam_app`,
+    `POSTGRES_DB=mariam_salon`, generated password — live only in
+    `/opt/postgres/.env` on the VM, mode 600, not copied anywhere else)
+  - `btree_gist` extension auto-enabled via an init script in
+    `/opt/postgres/init/01-extensions.sql` — verified present
+  - Bound to `127.0.0.1:5432` only (not publicly exposed); reachable from other
+    containers via the shared `nginx-setup_web` docker network under hostname `postgres`
+  - Verified healthy (`pg_isready` OK, `btree_gist` confirmed in `pg_extension`)
+- **Decided**: no Node.js/pm2 install on the host — the app itself will be
+  containerized in Step 8, consistent with "docker compose wherever applicable"
+- **Deferred** (by explicit choice): TLS cert for mariamik.info — it's a placeholder
+  domain, not the final one, so this waits until Step 8 with the real domain
