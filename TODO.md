@@ -25,7 +25,13 @@ prompt text behind each step below.
 - [x] ~~Step 8 — Deployment~~ (done — live at http://mariamik.info/ and
       http://mariamik.info/admin/, verified end-to-end against the public domain in
       a real browser. TLS deferred, see "Resolved decisions" above.)
-- [ ] **Step 9** — QA pass (race conditions, cutoff boundaries, i18n, financial totals)
+- [x] ~~Step 9 — QA pass~~ (done — 7/7 automated tests passing against the real
+      database, plus a browser-based i18n pass closing the last language/app gaps.
+      Found and fixed 3 bugs in the test script and 1 real app bug (Armenian date
+      formatting). Pushed and redeployed live.)
+
+**All 9 roadmap steps are now complete.** The app is live at http://mariamik.info/
+(guest) and http://mariamik.info/admin/ (admin). See `DONE.md` for full history.
 
 ## Smaller open items (from the plan's "still to review" list)
 - [ ] Repeat client tracking by phone number — decide if wanted (not currently planned)
@@ -37,12 +43,18 @@ For local iteration against the real VM database: open a tunnel with
 `server/.env` (gitignored) already points `DATABASE_URL` through that tunnel port.
 Remember to close the tunnel when done.
 
-## Reminder
-- [ ] Replace the placeholder admin credentials (`mariam` / test password, created
-      during Step 4 testing) with real ones — the admin dashboard is now actually
-      live, so this is no longer just theoretical. Run
-      `npm run create-admin -- <username> <password>` against the VM's Postgres
-      (see README "Secrets").
+To re-run the QA suite later (e.g. before a future deploy): with the server running
+as above, `QA_ADMIN_USERNAME=... QA_ADMIN_PASSWORD=... npm run test:qa` from
+`server/`. Unset `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` first to avoid spamming
+Mariam's real Telegram with QA noise. Leaves 2 stray `expenses` rows per run (no
+delete endpoint exists by design) — clean those up manually afterward.
 
-## Current next step
-➡️ **Step 9 — QA pass** (the last step in the roadmap).
+## What's left (all outside the original 9-step roadmap, which is now complete)
+1. **Replace the placeholder admin credentials** (`mariam` / test password) with
+   real ones — the highest-priority remaining item, since the dashboard is live.
+   `npm run create-admin -- <username> <password>` against the VM's Postgres.
+2. **Decide the final production domain**, then follow README "Enabling TLS" —
+   not urgent, the app works fully over HTTP on the placeholder domain in the
+   meantime, and the swap needs no code changes.
+3. The two smaller open items above (repeat-client tracking, full API endpoint
+   list) — neither is blocking, both are optional future decisions.

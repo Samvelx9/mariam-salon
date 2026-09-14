@@ -7,14 +7,22 @@
 // TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID) since these tests create and cancel a
 // number of bookings — delivery itself was already verified in Step 5.
 //
-// Run with: npm run test:qa
+// Run with:
+//   QA_ADMIN_USERNAME=<username> QA_ADMIN_PASSWORD=<password> npm run test:qa
+// (never hardcode real credentials here — this file is committed to a public repo)
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 const API = process.env.QA_API_URL || 'http://localhost:4000/api';
-const ADMIN_USERNAME = process.env.QA_ADMIN_USERNAME || 'mariam';
-const ADMIN_PASSWORD = process.env.QA_ADMIN_PASSWORD || 'TestPass1234';
+const ADMIN_USERNAME = process.env.QA_ADMIN_USERNAME;
+const ADMIN_PASSWORD = process.env.QA_ADMIN_PASSWORD;
+
+if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+  throw new Error(
+    'Set QA_ADMIN_USERNAME and QA_ADMIN_PASSWORD (the admin account to run QA against) before running this suite — never hardcoded, since this file is committed to a public repo.'
+  );
+}
 
 // Independent of the server's own time helpers, deliberately — a test that
 // reuses the implementation's own date math could pass even if that math is

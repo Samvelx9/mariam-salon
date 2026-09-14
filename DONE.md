@@ -281,3 +281,65 @@
       ones before real use — now doubly relevant since the admin dashboard is
       actually live: `npm run create-admin -- <username> <password>` run on the VM
       against the live Postgres (see README).
+
+## Step 9 — QA pass ✅
+- `server/test/qa.test.js` — a committed, repeatable integration suite (Node's
+  built-in `node:test` + `assert/strict`, zero new dependencies) run against the
+  real database via `npm run test:qa`, covering every item on the roadmap's
+  checklist. All 7 tests pass:
+  - **Double-booking race**: two concurrent create requests for the identical slot —
+    verified exactly one gets `201`, the other a friendly `409 slot_taken`, not a
+    raw DB error
+  - **90-minute cutoff at the exact 89/91-minute boundary**, on both create and
+    reschedule — the test temporarily widens "today"'s weekly hours (needed since
+    QA can run at any real-world time, including outside business hours) and
+    restores them immediately afterward, asserting the restore succeeded
+  - **Cancellation has no cutoff** — works even ~91 minutes before the appointment
+  - **Phone lookup** returns only that number's own upcoming, non-cancelled,
+    non-completed bookings, correctly as a list when there's more than one
+  - **No-show doesn't block rebooking**
+  - **Financial aggregation** matches hand-calculated totals for a small seeded
+    dataset (income by service, expenses by category, net), and **price_at_booking**
+    keeps a completed booking's historical income correct after the service's price
+    later changes (verified both directions: old booking unaffected, a brand-new
+    booking against the repriced service snapshots the new price)
+- Three real bugs found and fixed **in the test script itself** while getting it
+  green — worth recording since they're easy mistakes to repeat:
+  1. A header-merging bug (`{headers: {...}, ...opts}` — the later spread silently
+     discarded the earlier `Content-Type` whenever `opts` also carried a `headers`
+     key) meant every admin request went out without `Content-Type`, so Express
+     never parsed the body — including a weekly-hours "widen" call, which silently
+     failed and actually **closed** the day instead
+  2. A stale-slot-snapshot race: fetching all slot lists once upfront, then creating
+     several bookings sequentially, meant a later booking could collide with an
+     earlier one from the *same test run* (different services share the same time
+     grid but have different durations) — fixed by re-fetching slots immediately
+     before each booking
+  3. A silent restore failure: Postgres returns `TIME` as `'09:00:00'`, but the
+     admin API's `isValidTime` only accepts `'09:00'` — the cutoff test's restore-
+     to-original-hours call was silently rejected and never asserted, leaving
+     Monday's hours stuck wide open in the real database until caught by manually
+     inspecting DB state after a "passing" run and noticing it looked wrong
+- Removed a hardcoded default test password from the script before committing —
+  it would otherwise have shipped this repo's live (if placeholder) admin
+  credential to a public GitHub repo. Now requires `QA_ADMIN_USERNAME` /
+  `QA_ADMIN_PASSWORD` env vars, no fallback.
+- **i18n visual pass**: Steps 6/7 had already covered guest-app-in-English,
+  guest-app-in-Russian, admin-in-Russian, and admin-in-Armenian live in a browser —
+  this pass closed the two remaining gaps (guest app in Armenian, admin app in
+  English) rather than re-testing everything from scratch. Found a real bug this
+  way: Armenian date formatting (`Tue, Sep 15` staying in English while only the
+  "at"/"ժամը" connector translated) — traced to at least one real browser's ICU
+  build having **no Armenian locale data at all**
+  (`Intl.DateTimeFormat.supportedLocalesOf` excluded `hy-AM` entirely, only
+  `ru-RU`/`en-US` came back), confirmed via a direct isolated repro before touching
+  any code. Fixed in `shared/i18n.js` by building weekday/month names from our own
+  translation tables instead of delegating to `toLocaleDateString`, removing the
+  dependency on runtime ICU completeness — benefits both apps, since it's in the
+  shared package. Verified fixed with the exact same repro.
+- All test data (bookings, weekly-hours overrides, service prices, expense rows)
+  fully cleaned up and verified back to original state after every run.
+- The QA suite and the i18n date-formatting fix were pushed and **redeployed to the
+  live site** via `/opt/app/deploy.sh` (the Step 8 redeploy path) — confirmed
+  working end-to-end as the first real "push code → redeploy" cycle since initial
+  deployment.
