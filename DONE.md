@@ -392,7 +392,16 @@ clean-up work earlier the same day.
   becomes an hourly rate, and the guest chooses a length in 30-minute steps from
   half an hour to six hours, priced pro rata (half an hour costs half the rate).
   Half an hour is both the minimum and the step because it matches the slot grid,
-  so every bookable length still lands on a real slot boundary. The chosen
+  so every bookable length still lands on a real slot boundary. The length is
+  chosen **on the schedule screen**, above the times rather than on the zone
+  screen before them: the question "is three hours free?" can only be answered
+  by the slot list, so each change re-asks for slots and the day empties or
+  fills in front of the guest. Verified against a real gap — with a booking at
+  noon, a 30-minute length offered 10:00-11:30, and stepping to two hours left
+  only 10:00, since the later starts would have run into it. The calendar's slot
+  list is therefore owned by an effect keyed on the chosen length; reloads keep
+  the day being viewed, and each response carries a request id so a slow earlier
+  one can't overwrite a newer answer when the stepper is tapped repeatedly. The chosen
   length is part of the slot request, since it decides which start times leave
   enough room, and both the duration and the price are recomputed on the server
   from the hours rather than taken from the client. Rescheduling now keeps the

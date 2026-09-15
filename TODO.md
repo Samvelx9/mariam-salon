@@ -78,7 +78,9 @@ prompt text behind each step below.
       migration `1789390653100_hourly-treatments`). Ticking "Почасовая оплата" on
       a treatment turns every zone's price into an hourly rate; the guest then
       picks a length in 30-minute steps, from half an hour up to six, priced pro
-      rata, and the slot list only offers starts with that much room.
+      rata. The picker sits on the schedule screen, above the times, so changing
+      the length re-asks for slots and the guest can see whether Mariam actually
+      has that long free before committing to it.
       Duration and price are always computed server-side from the chosen hours,
       never trusted from the client.
   - [ ] **Mariam decides whether Electrolysis is hourly.** Left off for now: the
