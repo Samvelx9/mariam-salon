@@ -484,6 +484,68 @@ adminRouter.get(
   })
 );
 
+// The admin screen edits the whole week at once behind a single Save, so the
+// seven rows go up together and land in one transaction — a week half-saved
+// because the fourth row was invalid would be worse than no save at all.
+adminRouter.put(
+  '/availability/weekly',
+  asyncHandler(async (req, res) => {
+    const days = req.body?.days;
+    if (!Array.isArray(days) || days.length === 0) {
+      return res.status(400).json({ error: 'missing_days' });
+    }
+
+    const updates = [];
+    const seen = new Set();
+    for (const day of days) {
+      const dayOfWeek = Number(day?.dayOfWeek);
+      if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6 || seen.has(dayOfWeek)) {
+        return res.status(400).json({ error: 'invalid_day_of_week' });
+      }
+      seen.add(dayOfWeek);
+
+      const isOpen = Boolean(day?.isOpen);
+      let startTime = null;
+      let endTime = null;
+      if (isOpen) {
+        startTime = day?.startTime;
+        endTime = day?.endTime;
+        if (!isValidTime(startTime) || !isValidTime(endTime) || startTime >= endTime) {
+          return res.status(400).json({ error: 'invalid_hours', dayOfWeek });
+        }
+      }
+      updates.push([dayOfWeek, isOpen, startTime, endTime]);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const values of updates) {
+        const { rowCount } = await client.query(
+          `UPDATE weekly_hours SET is_open = $2, start_time = $3, end_time = $4
+           WHERE day_of_week = $1`,
+          values
+        );
+        if (rowCount === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: 'day_not_found', dayOfWeek: values[0] });
+        }
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    const { rows } = await pool.query(
+      'SELECT day_of_week, is_open, start_time, end_time FROM weekly_hours ORDER BY day_of_week'
+    );
+    res.json(rows);
+  })
+);
+
 adminRouter.put(
   '/availability/weekly/:dayOfWeek',
   asyncHandler(async (req, res) => {

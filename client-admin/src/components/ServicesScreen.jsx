@@ -143,49 +143,20 @@ export default function ServicesScreen({ T, lang, onAuthError }) {
 
       {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--terracotta)' }}>{T[error]}</p>}
 
-      {editingId !== null && (
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-            <Field label={T.nameEnLabel} value={form.nameEn} onChange={(v) => setForm({ ...form, nameEn: v })} />
-            <Field label={T.nameRuLabel} value={form.nameRu} onChange={(v) => setForm({ ...form, nameRu: v })} />
-            <Field label={T.nameHyLabel} value={form.nameHy} onChange={(v) => setForm({ ...form, nameHy: v })} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.serviceCategoryLabel}</label>
-              <select
-                className="field-input"
-                value={form.categoryId}
-                onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c[`name_${lang}`]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Field
-              label={T.durationLabel}
-              type="number"
-              value={form.durationMinutes}
-              onChange={(v) => setForm({ ...form, durationMinutes: v })}
-            />
-            <Field label={T.priceLabel} type="number" value={form.priceAmd} onChange={(v) => setForm({ ...form, priceAmd: v })} />
-            <Field
-              label={T.sortOrderLabel}
-              type="number"
-              value={form.sortOrder}
-              onChange={(v) => setForm({ ...form, sortOrder: v })}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn-primary" onClick={save} disabled={saving}>
-              {T.saveBtn}
-            </button>
-            <button className="btn-outline" onClick={cancelEdit}>
-              {T.cancelBtn}
-            </button>
-          </div>
-        </div>
+      {/* Editing a service opens the form directly under that service's row
+          (see ServiceRow below); only a brand-new one has no row to sit under,
+          so it goes at the top. */}
+      {editingId === 'new' && (
+        <ServiceForm
+          T={T}
+          lang={lang}
+          form={form}
+          setForm={setForm}
+          categories={categories}
+          saving={saving}
+          onSave={save}
+          onCancel={cancelEdit}
+        />
       )}
 
       {loading ? (
@@ -207,15 +178,30 @@ export default function ServicesScreen({ T, lang, onAuthError }) {
                 {category ? category[`name_${lang}`] : T.uncategorized}
               </h3>
               {rows.map((s) => (
-                <ServiceRow
-                  key={s.id}
-                  T={T}
-                  lang={lang}
-                  service={s}
-                  onEdit={() => startEdit(s)}
-                  onToggleActive={() => toggleActive(s)}
-                  onRemove={() => remove(s)}
-                />
+                <div key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <ServiceRow
+                    T={T}
+                    lang={lang}
+                    service={s}
+                    isEditing={editingId === s.id}
+                    onEdit={() => startEdit(s)}
+                    onToggleActive={() => toggleActive(s)}
+                    onRemove={() => remove(s)}
+                  />
+                  {editingId === s.id && (
+                    <ServiceForm
+                      T={T}
+                      lang={lang}
+                      form={form}
+                      setForm={setForm}
+                      categories={categories}
+                      saving={saving}
+                      onSave={save}
+                      onCancel={cancelEdit}
+                      nested
+                    />
+                  )}
+                </div>
               ))}
             </div>
           ))}
@@ -239,7 +225,66 @@ function groupByCategory(services, categories) {
   return groups.filter((group) => group.rows.length > 0);
 }
 
-function ServiceRow({ T, lang, service, onEdit, onToggleActive, onRemove }) {
+// `nested` marks the copy that sits inside a service's row group — indented and
+// accented down its left edge so it reads as belonging to the row above it.
+function ServiceForm({ T, lang, form, setForm, categories, saving, onSave, onCancel, nested }) {
+  return (
+    <div
+      className="card"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        ...(nested
+          ? { marginLeft: 16, borderLeft: '3px solid var(--terracotta)', background: 'var(--bg)' }
+          : null),
+      }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        <Field label={T.nameEnLabel} value={form.nameEn} onChange={(v) => setForm({ ...form, nameEn: v })} />
+        <Field label={T.nameRuLabel} value={form.nameRu} onChange={(v) => setForm({ ...form, nameRu: v })} />
+        <Field label={T.nameHyLabel} value={form.nameHy} onChange={(v) => setForm({ ...form, nameHy: v })} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.serviceCategoryLabel}</label>
+          <select
+            className="field-input"
+            value={form.categoryId}
+            onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+          >
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c[`name_${lang}`]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Field
+          label={T.durationLabel}
+          type="number"
+          value={form.durationMinutes}
+          onChange={(v) => setForm({ ...form, durationMinutes: v })}
+        />
+        <Field label={T.priceLabel} type="number" value={form.priceAmd} onChange={(v) => setForm({ ...form, priceAmd: v })} />
+        <Field
+          label={T.sortOrderLabel}
+          type="number"
+          value={form.sortOrder}
+          onChange={(v) => setForm({ ...form, sortOrder: v })}
+        />
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn-primary" onClick={onSave} disabled={saving}>
+          {T.saveBtn}
+        </button>
+        <button className="btn-outline" onClick={onCancel} disabled={saving}>
+          {T.cancelBtn}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ServiceRow({ T, lang, service, isEditing, onEdit, onToggleActive, onRemove }) {
   return (
     <div
       className="card"
@@ -259,7 +304,7 @@ function ServiceRow({ T, lang, service, onEdit, onToggleActive, onRemove }) {
         </span>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button className="btn-outline" onClick={onEdit}>
+        <button className="btn-outline" onClick={onEdit} disabled={isEditing}>
           {T.editBtn}
         </button>
         <button className="btn-outline" onClick={onToggleActive}>

@@ -19,6 +19,10 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
   const [error, setError] = useState(null);
   const [newBlock, setNewBlock] = useState({ date: '', allDay: true, startTime: '10:00', endTime: '11:00', note: '' });
   const [addingBlock, setAddingBlock] = useState(false);
+  // The week is edited as one unit: `draft` holds the seven rows while editing
+  // and is null the rest of the time, so `hours` always shows what's saved.
+  const [draft, setDraft] = useState(null);
+  const [savingHours, setSavingHours] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -42,19 +46,44 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
   }, []);
 
   function updateRow(dayOfWeek, fields) {
-    setHours((prev) => prev.map((h) => (h.day_of_week === dayOfWeek ? { ...h, ...fields } : h)));
+    setDraft((prev) => prev.map((h) => (h.day_of_week === dayOfWeek ? { ...h, ...fields } : h)));
   }
 
-  async function saveRow(row) {
+  function startEditHours() {
+    setDraft(hours.map((h) => ({ ...h })));
+    setError(null);
+  }
+
+  function cancelEditHours() {
+    setDraft(null);
+    setError(null);
+  }
+
+  async function saveHours() {
+    const days = draft.map((row) => ({
+      dayOfWeek: row.day_of_week,
+      isOpen: row.is_open,
+      startTime: (row.start_time || '').slice(0, 5),
+      endTime: (row.end_time || '').slice(0, 5),
+    }));
+    // Caught here as well as server-side so an open day with no end time names
+    // itself instead of failing the whole week with a generic message.
+    const invalid = days.find((d) => d.isOpen && (!d.startTime || !d.endTime || d.startTime >= d.endTime));
+    if (invalid) {
+      setError('invalidHoursError');
+      return;
+    }
+
+    setSavingHours(true);
+    setError(null);
     try {
-      await api.updateWeeklyHours(row.day_of_week, {
-        isOpen: row.is_open,
-        startTime: row.start_time,
-        endTime: row.end_time,
-      });
-      await load();
+      const saved = await api.updateWeeklyHoursAll(days);
+      setHours(saved);
+      setDraft(null);
     } catch (err) {
       if (!onAuthError(err)) setError('genericError');
+    } finally {
+      setSavingHours(false);
     }
   }
 
@@ -96,55 +125,78 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
       {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--terracotta)' }}>{T[error]}</p>}
 
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 600 }}>{T.weeklyHoursSection}</h3>
-        {hours.map((row) => (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600 }}>{T.weeklyHoursSection}</h3>
+          {draft === null ? (
+            <button className="btn-outline" onClick={startEditHours}>
+              {T.editHoursBtn}
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-primary" onClick={saveHours} disabled={savingHours}>
+                {T.saveHoursBtn}
+              </button>
+              <button className="btn-outline" onClick={cancelEditHours} disabled={savingHours}>
+                {T.cancelBtn}
+              </button>
+            </div>
+          )}
+        </div>
+        {(draft ?? hours).map((row) => (
           <div
             key={row.day_of_week}
             className="card"
             style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}
           >
             <span style={{ minWidth: 110, fontWeight: 600, fontSize: 14 }}>{WEEKDAY_FULL[lang][row.day_of_week]}</span>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-              <input
-                type="checkbox"
-                checked={row.is_open}
-                onChange={(e) =>
-                  updateRow(row.day_of_week, {
-                    is_open: e.target.checked,
-                    start_time: e.target.checked ? row.start_time || '09:00' : null,
-                    end_time: e.target.checked ? row.end_time || '18:00' : null,
-                  })
-                }
-              />
-              {row.is_open ? T.openLabel : T.closedLabel}
-            </label>
-            {row.is_open && (
+            {draft === null ? (
+              <span style={{ fontSize: 13.5, color: row.is_open ? 'inherit' : 'var(--muted)' }}>
+                {row.is_open
+                  ? `${(row.start_time || '').slice(0, 5)} – ${(row.end_time || '').slice(0, 5)}`
+                  : T.closedLabel}
+              </span>
+            ) : (
               <>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  {T.startTimeLabel}
                   <input
-                    className="field-input"
-                    style={{ width: 110 }}
-                    type="time"
-                    value={(row.start_time || '').slice(0, 5)}
-                    onChange={(e) => updateRow(row.day_of_week, { start_time: e.target.value })}
+                    type="checkbox"
+                    checked={row.is_open}
+                    onChange={(e) =>
+                      updateRow(row.day_of_week, {
+                        is_open: e.target.checked,
+                        start_time: e.target.checked ? row.start_time || '09:00' : null,
+                        end_time: e.target.checked ? row.end_time || '18:00' : null,
+                      })
+                    }
                   />
+                  {row.is_open ? T.openLabel : T.closedLabel}
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  {T.endTimeLabel}
-                  <input
-                    className="field-input"
-                    style={{ width: 110 }}
-                    type="time"
-                    value={(row.end_time || '').slice(0, 5)}
-                    onChange={(e) => updateRow(row.day_of_week, { end_time: e.target.value })}
-                  />
-                </label>
+                {row.is_open && (
+                  <>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                      {T.startTimeLabel}
+                      <input
+                        className="field-input"
+                        style={{ width: 110 }}
+                        type="time"
+                        value={(row.start_time || '').slice(0, 5)}
+                        onChange={(e) => updateRow(row.day_of_week, { start_time: e.target.value })}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                      {T.endTimeLabel}
+                      <input
+                        className="field-input"
+                        style={{ width: 110 }}
+                        type="time"
+                        value={(row.end_time || '').slice(0, 5)}
+                        onChange={(e) => updateRow(row.day_of_week, { end_time: e.target.value })}
+                      />
+                    </label>
+                  </>
+                )}
               </>
             )}
-            <button className="btn-primary" style={{ marginLeft: 'auto' }} onClick={() => saveRow(row)}>
-              {T.saveBtn}
-            </button>
           </div>
         ))}
       </section>

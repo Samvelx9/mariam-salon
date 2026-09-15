@@ -68,6 +68,9 @@ export const api = {
   deleteService: (id) => request(`/admin/services/${id}`, { method: 'DELETE' }),
 
   getWeeklyHours: () => request('/admin/availability/weekly'),
+  // The whole week saved at once, transactionally — see the Availability screen.
+  updateWeeklyHoursAll: (days) =>
+    request('/admin/availability/weekly', { method: 'PUT', body: JSON.stringify({ days }) }),
   updateWeeklyHours: (dayOfWeek, payload) =>
     request(`/admin/availability/weekly/${dayOfWeek}`, {
       method: 'PUT',

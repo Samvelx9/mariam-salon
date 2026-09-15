@@ -41,10 +41,15 @@ prompt text behind each step below.
 - [ ] **Mariam still has to fill the landing page in** — the profile's about text,
       contacts, address, map link and photo are all blank, so those sections are
       hidden on the live page until she enters them under Admin → Landing page.
-- [ ] **The price lists are still placeholder data.** The five original seed services
-      plus four sample zones added with the treatments (2 sugaring, 2 electrolysis)
-      all carry invented names and prices. Replace them with Mariam's real zones and
-      prices under Admin → Services.
+- [x] ~~The price lists are still placeholder data.~~ Replaced with Mariam's real
+      sugar/wax price list — twelve zones, priced identically under **Waxing** and
+      **Sugaring** (migration `1789390653080_real-price-list`). Two follow-ups:
+  - [ ] **Durations are estimates.** Her price sheet lists no durations, so each
+        zone got a working guess (15–60 min). Mariam should check them under
+        Admin → Services; they drive how much of the day a booking takes.
+  - [ ] **Electrolysis has no prices yet.** It's left with zero zones, so the
+        treatment is hidden from the landing page until she adds them, rather
+        than showing invented numbers.
 
 ## Smaller open items (from the plan's "still to review" list)
 - [ ] Repeat client tracking by phone number — decide if wanted (not currently planned)

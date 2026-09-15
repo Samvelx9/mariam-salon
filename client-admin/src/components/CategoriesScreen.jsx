@@ -135,40 +135,17 @@ export default function CategoriesScreen({ T, lang, onAuthError }) {
 
       {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--terracotta)' }}>{T[error]}</p>}
 
-      {editingId !== null && (
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <FieldGroup
-            label={T.categoryNameLabel}
-            T={T}
-            form={form}
-            setForm={setForm}
-            keys={['nameHy', 'nameRu', 'nameEn']}
-          />
-          <FieldGroup
-            label={T.categoryDescriptionLabel}
-            T={T}
-            form={form}
-            setForm={setForm}
-            keys={['descriptionHy', 'descriptionRu', 'descriptionEn']}
-            multiline
-          />
-          <div style={{ maxWidth: 160 }}>
-            <Field
-              label={T.sortOrderLabel}
-              type="number"
-              value={form.sortOrder}
-              onChange={(v) => setForm({ ...form, sortOrder: v })}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn-primary" onClick={save} disabled={saving}>
-              {T.saveBtn}
-            </button>
-            <button className="btn-outline" onClick={() => setEditingId(null)}>
-              {T.cancelBtn}
-            </button>
-          </div>
-        </div>
+      {/* Same rule as Services: editing opens the form under the treatment it
+          belongs to, and only a new treatment sits at the top. */}
+      {editingId === 'new' && (
+        <CategoryForm
+          T={T}
+          form={form}
+          setForm={setForm}
+          saving={saving}
+          onSave={save}
+          onCancel={() => setEditingId(null)}
+        />
       )}
 
       {loading ? (
@@ -176,8 +153,8 @@ export default function CategoriesScreen({ T, lang, onAuthError }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {categories.map((category) => (
+            <div key={category.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div
-              key={category.id}
               className="card"
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
             >
@@ -198,7 +175,7 @@ export default function CategoriesScreen({ T, lang, onAuthError }) {
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="btn-outline" onClick={() => startEdit(category)}>
+                <button className="btn-outline" onClick={() => startEdit(category)} disabled={editingId === category.id}>
                   {T.editBtn}
                 </button>
                 <button className="btn-outline" onClick={() => toggleActive(category)}>
@@ -209,9 +186,65 @@ export default function CategoriesScreen({ T, lang, onAuthError }) {
                 </button>
               </div>
             </div>
+            {editingId === category.id && (
+              <CategoryForm
+                T={T}
+                form={form}
+                setForm={setForm}
+                saving={saving}
+                onSave={save}
+                onCancel={() => setEditingId(null)}
+                nested
+              />
+            )}
+            </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// `nested` marks the copy rendered under a treatment's row — indented and
+// accented so it reads as belonging to that treatment.
+function CategoryForm({ T, form, setForm, saving, onSave, onCancel, nested }) {
+  return (
+    <div
+      className="card"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+        ...(nested
+          ? { marginLeft: 16, borderLeft: '3px solid var(--terracotta)', background: 'var(--bg)' }
+          : null),
+      }}
+    >
+      <FieldGroup label={T.categoryNameLabel} T={T} form={form} setForm={setForm} keys={['nameHy', 'nameRu', 'nameEn']} />
+      <FieldGroup
+        label={T.categoryDescriptionLabel}
+        T={T}
+        form={form}
+        setForm={setForm}
+        keys={['descriptionHy', 'descriptionRu', 'descriptionEn']}
+        multiline
+      />
+      <div style={{ maxWidth: 160 }}>
+        <Field
+          label={T.sortOrderLabel}
+          type="number"
+          value={form.sortOrder}
+          onChange={(v) => setForm({ ...form, sortOrder: v })}
+        />
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn-primary" onClick={onSave} disabled={saving}>
+          {T.saveBtn}
+        </button>
+        <button className="btn-outline" onClick={onCancel} disabled={saving}>
+          {T.cancelBtn}
+        </button>
+      </div>
     </div>
   );
 }

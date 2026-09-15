@@ -113,6 +113,9 @@ export const STRINGS = {
 
     availabilityTitle: 'Availability',
     weeklyHoursSection: 'Weekly hours',
+    editHoursBtn: 'Edit hours',
+    saveHoursBtn: 'Save hours',
+    invalidHoursError: 'Each open day needs a start time earlier than its end time.',
     dateBlocksSection: 'Date-specific blocks',
     openLabel: 'Open',
     closedLabel: 'Closed',
@@ -240,6 +243,9 @@ export const STRINGS = {
 
     availabilityTitle: 'Доступность',
     weeklyHoursSection: 'Часы работы по дням недели',
+    editHoursBtn: 'Изменить часы',
+    saveHoursBtn: 'Сохранить часы',
+    invalidHoursError: 'У каждого рабочего дня время начала должно быть раньше времени окончания.',
     dateBlocksSection: 'Блокировки на конкретные даты',
     openLabel: 'Открыто',
     closedLabel: 'Закрыто',
@@ -367,6 +373,9 @@ export const STRINGS = {
 
     availabilityTitle: 'Հասանելիություն',
     weeklyHoursSection: 'Աշխատանքային ժամեր՝ ըստ շաբաթվա օրերի',
+    editHoursBtn: 'Փոխել ժամերը',
+    saveHoursBtn: 'Պահպանել ժամերը',
+    invalidHoursError: 'Յուրաքանչյուր բաց օրվա սկիզբը պետք է ավելի շուտ լինի, քան ավարտը։',
     dateBlocksSection: 'Կոնկրետ ամսաթվերի արգելափակումներ',
     openLabel: 'Բաց',
     closedLabel: 'Փակ',
