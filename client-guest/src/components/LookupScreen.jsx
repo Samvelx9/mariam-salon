@@ -6,7 +6,7 @@ export default function LookupScreen(f) {
     <>
       <Header
         title={T.findYourBooking}
-        onBack={f.backToServices}
+        onBack={f.backToLanding}
         lang={f.lang}
         langMenuOpen={f.langMenuOpen}
         toggleLangMenu={f.toggleLangMenu}

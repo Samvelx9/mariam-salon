@@ -1,4 +1,5 @@
 import { useBookingFlow } from './useBookingFlow.js';
+import LandingScreen from './components/LandingScreen.jsx';
 import ServicesScreen from './components/ServicesScreen.jsx';
 import CalendarScreen from './components/CalendarScreen.jsx';
 import DetailsScreen from './components/DetailsScreen.jsx';
@@ -11,6 +12,7 @@ import CancelConfirmScreen from './components/CancelConfirmScreen.jsx';
 import CancelledScreen from './components/CancelledScreen.jsx';
 
 const SCREENS = {
+  landing: LandingScreen,
   services: ServicesScreen,
   calendar: CalendarScreen,
   details: DetailsScreen,
@@ -25,7 +27,7 @@ const SCREENS = {
 
 export default function App() {
   const flow = useBookingFlow();
-  const Screen = SCREENS[flow.step] ?? ServicesScreen;
+  const Screen = SCREENS[flow.step] ?? LandingScreen;
 
   return (
     <div className="app-shell">

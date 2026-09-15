@@ -32,6 +32,17 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  getProfile: () => request('/profile'),
+
+  // Mariam's photo is served as raw bytes, not JSON — callers need the URL,
+  // not the body. `version` comes from the profile and busts the cache when
+  // she uploads a new photo.
+  photoUrl: (version) => `${API_BASE}/profile/photo?v=${version}`,
+
+  getCategories: () => request('/categories'),
+
+  getHours: () => request('/hours'),
+
   getServices: () => request('/services'),
 
   getSlots: (serviceId, { excludeBookingId } = {}) => {

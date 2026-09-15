@@ -1,43 +1,86 @@
 import LangSwitcher from './LangSwitcher.jsx';
 import { formatPrice } from '../i18n.js';
+import { ClockIcon, ChevronLeftIcon, CategoryIcon } from './Icons.jsx';
 
+// The price list for one treatment: every zone Mariam offers in that category,
+// with its duration and price. Picking a zone is step 1 of the booking flow.
 export default function ServicesScreen(f) {
-  const { T, lang, services, servicesLoading, selectedServiceId, selectService, continueToCalendar, goToLookup } = f;
+  const {
+    T,
+    lang,
+    selectedCategory,
+    servicesLoading,
+    selectedServiceId,
+    selectService,
+    continueToCalendar,
+    backToLanding,
+  } = f;
+
+  const zones = selectedCategory?.services ?? [];
 
   return (
     <>
       <div className="scrollarea" style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ position: 'relative', padding: '36px 24px 8px' }}>
-          {/* Own clipping wrapper so this decorative circle can't bleed into
-              horizontal scroll, without clipping the lang dropdown below (a
-              sibling, not nested inside this overflow:hidden box). */}
+        <div style={{ position: 'relative', padding: '20px 24px 8px' }}>
           <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
             <div
               style={{
                 position: 'absolute',
-                top: -60,
+                top: -70,
                 right: -50,
-                width: 180,
-                height: 180,
+                width: 190,
+                height: 190,
                 borderRadius: '50%',
                 background: 'var(--sage-light)',
-                opacity: 0.6,
+                opacity: 0.55,
               }}
             />
           </div>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--sage)', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', flexShrink: 0 }}>
-                <path d="M12 21C12 21 4 17 4 9C4 5 7 3 12 3C17 3 20 5 20 9C20 17 12 21 12 21Z"></path>
-                <path d="M12 21V9"></path>
-              </svg>
-              <h2 style={{ fontSize: 22, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {T.brandName}
-              </h2>
-            </div>
-            <LangSwitcher lang={f.lang} langMenuOpen={f.langMenuOpen} toggleLangMenu={f.toggleLangMenu} setLang={f.setLang} bg="var(--white)" />
+
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={backToLanding}
+              style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            >
+              <ChevronLeftIcon size={19} color="var(--ink)" strokeWidth={2} />
+            </button>
+            <span style={{ flex: 1 }} />
+            <LangSwitcher
+              lang={f.lang}
+              langMenuOpen={f.langMenuOpen}
+              toggleLangMenu={f.toggleLangMenu}
+              setLang={f.setLang}
+              bg="var(--white)"
+            />
           </div>
-          <p style={{ position: 'relative', margin: '6px 0 0', fontSize: 13, color: 'var(--muted)' }}>{T.tagline}</p>
+
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+            <span
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 15,
+                background: 'var(--white)',
+                border: '1px solid var(--line)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <CategoryIcon slug={selectedCategory?.slug} size={24} />
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <h2 style={{ fontSize: 24, fontWeight: 500, lineHeight: 1.2 }}>
+                {selectedCategory ? selectedCategory[`name_${lang}`] : ''}
+              </h2>
+              {selectedCategory?.[`description_${lang}`] && (
+                <p style={{ margin: '4px 0 0', fontSize: 12.5, lineHeight: 1.5, color: 'var(--muted)' }}>
+                  {selectedCategory[`description_${lang}`]}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         <div style={{ padding: '12px 24px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -51,19 +94,16 @@ export default function ServicesScreen(f) {
           </div>
         </div>
 
-        <div style={{ padding: '2px 24px 4px', textAlign: 'center' }}>
-          <a href="#" onClick={(e) => { e.preventDefault(); goToLookup(); }} style={{ fontSize: 12.5, fontWeight: 600 }}>
-            {T.manageLink}
-          </a>
-        </div>
-
         <div style={{ padding: '12px 24px 8px' }}>
-          <h3 style={{ fontSize: 19, fontWeight: 500 }}>{T.chooseService}</h3>
+          <h3 style={{ fontSize: 19, fontWeight: 500 }}>{T.chooseZone}</h3>
         </div>
 
         <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {servicesLoading && <span style={{ fontSize: 14, color: 'var(--muted)' }}>{T.loading}</span>}
-          {services.map((s) => {
+          {!servicesLoading && zones.length === 0 && (
+            <span style={{ fontSize: 14, color: 'var(--muted)' }}>{T.noZonesYet}</span>
+          )}
+          {zones.map((s) => {
             const selected = s.id === selectedServiceId;
             return (
               <button
@@ -86,10 +126,7 @@ export default function ServicesScreen(f) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontFamily: "'Newsreader',serif", fontSize: 16, color: 'var(--ink)' }}>{s[`name_${lang}`]}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--muted)' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--muted)', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
-                      <circle cx="12" cy="12" r="9"></circle>
-                      <path d="M12 7V12L15.5 14"></path>
-                    </svg>
+                    <ClockIcon size={13} color="var(--muted)" strokeWidth={2} />
                     {s.duration_minutes} {T.minUnit}
                   </span>
                 </div>

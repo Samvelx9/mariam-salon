@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, raw } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db.js';
@@ -6,6 +6,13 @@ import { asyncHandler } from '../lib/asyncHandler.js';
 import { requireAdminAuth } from '../middleware/auth.js';
 import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
 import { todayDateStr, addDaysToDateStr, localToUtc } from '../lib/time.js';
+import {
+  PROFILE_TEXT_COLUMNS,
+  getProfileRow,
+  shapeProfile,
+  maxLengthFor,
+  toCamel,
+} from '../services/profile.js';
 
 export const adminRouter = Router();
 
@@ -13,6 +20,7 @@ const FOREIGN_KEY_VIOLATION = '23503';
 const CHECK_VIOLATION = '23514';
 const UNIQUE_VIOLATION = '23505';
 const BOOKING_STATUSES = ['confirmed', 'completed', 'cancelled', 'no_show'];
+const PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 function slugify(text) {
   return text
@@ -57,6 +65,232 @@ adminRouter.post(
 adminRouter.use(requireAdminAuth);
 
 // ---------------------------------------------------------------------------
+// Salon profile (the guest landing page's content)
+// ---------------------------------------------------------------------------
+
+adminRouter.get(
+  '/profile',
+  asyncHandler(async (_req, res) => {
+    const row = await getProfileRow();
+    if (!row) {
+      return res.status(404).json({ error: 'profile_not_found' });
+    }
+    res.json(shapeProfile(row));
+  })
+);
+
+// Every field is optional and may legitimately be blank — this is free-form
+// copy, not validated business data — so a field simply omitted from the body
+// keeps its current value, and one sent empty is cleared.
+adminRouter.put(
+  '/profile',
+  asyncHandler(async (req, res) => {
+    const assignments = [];
+    const values = [];
+
+    for (const column of PROFILE_TEXT_COLUMNS) {
+      const sent = req.body?.[toCamel(column)];
+      if (sent === undefined) continue;
+      values.push(cleanString(sent, maxLengthFor(column)));
+      assignments.push(`${column} = $${values.length}`);
+    }
+
+    if (assignments.length === 0) {
+      return res.status(400).json({ error: 'no_fields_to_update' });
+    }
+
+    assignments.push('updated_at = now()');
+    await pool.query(`UPDATE salon_profile SET ${assignments.join(', ')} WHERE id = 1`, values);
+
+    res.json(shapeProfile(await getProfileRow()));
+  })
+);
+
+// The image arrives as a raw body with its own Content-Type rather than as
+// multipart — one file, no other fields, so multipart would only add a
+// dependency and a parsing step for nothing.
+adminRouter.put(
+  '/profile/photo',
+  raw({ type: PHOTO_MIME_TYPES, limit: '4mb' }),
+  asyncHandler(async (req, res) => {
+    const mime = req.get('content-type');
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0 || !PHOTO_MIME_TYPES.includes(mime)) {
+      return res.status(400).json({ error: 'invalid_image', accepts: PHOTO_MIME_TYPES });
+    }
+
+    await pool.query(
+      `UPDATE salon_profile
+       SET photo_mime = $1, photo_data = $2, photo_updated_at = now(), updated_at = now()
+       WHERE id = 1`,
+      [mime, req.body]
+    );
+
+    res.json(shapeProfile(await getProfileRow()));
+  })
+);
+
+adminRouter.delete(
+  '/profile/photo',
+  asyncHandler(async (_req, res) => {
+    await pool.query(
+      `UPDATE salon_profile
+       SET photo_mime = NULL, photo_data = NULL, photo_updated_at = NULL, updated_at = now()
+       WHERE id = 1`
+    );
+    res.json(shapeProfile(await getProfileRow()));
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Service categories
+// ---------------------------------------------------------------------------
+
+const CATEGORY_COLUMNS = `id, slug, name_en, name_ru, name_hy,
+       description_en, description_ru, description_hy, sort_order, is_active`;
+
+const SERVICE_COLUMNS = `id, category_id, slug, name_en, name_ru, name_hy,
+       duration_minutes, price_amd, sort_order, is_active`;
+
+adminRouter.get(
+  '/categories',
+  asyncHandler(async (_req, res) => {
+    const { rows } = await pool.query(
+      `SELECT ${CATEGORY_COLUMNS} FROM service_categories ORDER BY sort_order, id`
+    );
+    res.json(rows);
+  })
+);
+
+adminRouter.post(
+  '/categories',
+  asyncHandler(async (req, res) => {
+    const name_en = cleanString(req.body?.nameEn, 200);
+    const name_ru = cleanString(req.body?.nameRu, 200);
+    const name_hy = cleanString(req.body?.nameHy, 200);
+    const slug = cleanString(req.body?.slug, 100) || slugify(name_en);
+
+    if (!name_en || !name_ru || !name_hy || !slug) {
+      return res.status(400).json({ error: 'missing_fields' });
+    }
+
+    const sortOrder = Number(req.body?.sortOrder);
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO service_categories
+           (slug, name_en, name_ru, name_hy, description_en, description_ru, description_hy, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING ${CATEGORY_COLUMNS}`,
+        [
+          slug,
+          name_en,
+          name_ru,
+          name_hy,
+          cleanString(req.body?.descriptionEn, 500),
+          cleanString(req.body?.descriptionRu, 500),
+          cleanString(req.body?.descriptionHy, 500),
+          Number.isInteger(sortOrder) ? sortOrder : 0,
+        ]
+      );
+      res.status(201).json(rows[0]);
+    } catch (err) {
+      if (err.code === UNIQUE_VIOLATION) {
+        return res.status(409).json({ error: 'slug_taken' });
+      }
+      throw err;
+    }
+  })
+);
+
+adminRouter.patch(
+  '/categories/:id',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid_category_id' });
+    }
+
+    const fields = [];
+    const values = [];
+
+    const nameKeys = { nameEn: 'name_en', nameRu: 'name_ru', nameHy: 'name_hy' };
+    for (const [bodyKey, column] of Object.entries(nameKeys)) {
+      if (req.body?.[bodyKey] === undefined) continue;
+      const value = cleanString(req.body[bodyKey], 200);
+      if (!value) return res.status(400).json({ error: `invalid_${bodyKey}` });
+      values.push(value);
+      fields.push(`${column} = $${values.length}`);
+    }
+
+    const descriptionKeys = {
+      descriptionEn: 'description_en',
+      descriptionRu: 'description_ru',
+      descriptionHy: 'description_hy',
+    };
+    for (const [bodyKey, column] of Object.entries(descriptionKeys)) {
+      if (req.body?.[bodyKey] === undefined) continue;
+      values.push(cleanString(req.body[bodyKey], 500));
+      fields.push(`${column} = $${values.length}`);
+    }
+
+    if (req.body?.sortOrder !== undefined) {
+      const sortOrder = Number(req.body.sortOrder);
+      if (!Number.isInteger(sortOrder)) {
+        return res.status(400).json({ error: 'invalid_sort_order' });
+      }
+      values.push(sortOrder);
+      fields.push(`sort_order = $${values.length}`);
+    }
+
+    if (req.body?.isActive !== undefined) {
+      values.push(Boolean(req.body.isActive));
+      fields.push(`is_active = $${values.length}`);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'no_fields_to_update' });
+    }
+
+    values.push(id);
+    const { rows } = await pool.query(
+      `UPDATE service_categories SET ${fields.join(', ')} WHERE id = $${values.length}
+       RETURNING ${CATEGORY_COLUMNS}`,
+      values
+    );
+
+    if (!rows[0]) {
+      return res.status(404).json({ error: 'category_not_found' });
+    }
+    res.json(rows[0]);
+  })
+);
+
+adminRouter.delete(
+  '/categories/:id',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid_category_id' });
+    }
+
+    try {
+      const { rowCount } = await pool.query('DELETE FROM service_categories WHERE id = $1', [id]);
+      if (rowCount === 0) {
+        return res.status(404).json({ error: 'category_not_found' });
+      }
+      res.status(204).end();
+    } catch (err) {
+      if (err.code === FOREIGN_KEY_VIOLATION) {
+        return res.status(409).json({
+          error: 'category_has_services',
+          hint: 'Move or delete this category\'s services first, or deactivate it instead.',
+        });
+      }
+      throw err;
+    }
+  })
+);
+
+// ---------------------------------------------------------------------------
 // Services
 // ---------------------------------------------------------------------------
 
@@ -64,8 +298,7 @@ adminRouter.get(
   '/services',
   asyncHandler(async (_req, res) => {
     const { rows } = await pool.query(
-      `SELECT id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd, is_active
-       FROM services ORDER BY id`
+      `SELECT ${SERVICE_COLUMNS} FROM services ORDER BY sort_order, id`
     );
     res.json(rows);
   })
@@ -79,10 +312,15 @@ adminRouter.post(
     const name_hy = cleanString(req.body?.nameHy, 200);
     const duration_minutes = Number(req.body?.durationMinutes);
     const price_amd = Number(req.body?.priceAmd);
+    const category_id = Number(req.body?.categoryId);
+    const sortOrder = Number(req.body?.sortOrder);
     const slug = cleanString(req.body?.slug, 100) || slugify(name_en);
 
     if (!name_en || !name_ru || !name_hy || !slug) {
       return res.status(400).json({ error: 'missing_fields' });
+    }
+    if (!Number.isInteger(category_id)) {
+      return res.status(400).json({ error: 'invalid_category' });
     }
     if (!Number.isInteger(duration_minutes) || duration_minutes <= 0) {
       return res.status(400).json({ error: 'invalid_duration' });
@@ -93,15 +331,28 @@ adminRouter.post(
 
     try {
       const { rows } = await pool.query(
-        `INSERT INTO services (slug, name_en, name_ru, name_hy, duration_minutes, price_amd)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd, is_active`,
-        [slug, name_en, name_ru, name_hy, duration_minutes, price_amd]
+        `INSERT INTO services
+           (slug, category_id, name_en, name_ru, name_hy, duration_minutes, price_amd, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING ${SERVICE_COLUMNS}`,
+        [
+          slug,
+          category_id,
+          name_en,
+          name_ru,
+          name_hy,
+          duration_minutes,
+          price_amd,
+          Number.isInteger(sortOrder) ? sortOrder : 0,
+        ]
       );
       res.status(201).json(rows[0]);
     } catch (err) {
       if (err.code === UNIQUE_VIOLATION) {
         return res.status(409).json({ error: 'slug_taken' });
+      }
+      if (err.code === FOREIGN_KEY_VIOLATION) {
+        return res.status(400).json({ error: 'invalid_category' });
       }
       throw err;
     }
@@ -124,8 +375,10 @@ adminRouter.patch(
       nameEn: 'name_en',
       nameRu: 'name_ru',
       nameHy: 'name_hy',
+      categoryId: 'category_id',
       durationMinutes: 'duration_minutes',
       priceAmd: 'price_amd',
+      sortOrder: 'sort_order',
       isActive: 'is_active',
     };
 
@@ -146,6 +399,16 @@ adminRouter.patch(
         if (!Number.isInteger(value) || value < 0) {
           return res.status(400).json({ error: 'invalid_price' });
         }
+      } else if (column === 'category_id') {
+        value = Number(value);
+        if (!Number.isInteger(value)) {
+          return res.status(400).json({ error: 'invalid_category' });
+        }
+      } else if (column === 'sort_order') {
+        value = Number(value);
+        if (!Number.isInteger(value)) {
+          return res.status(400).json({ error: 'invalid_sort_order' });
+        }
       } else if (column === 'is_active') {
         value = Boolean(value);
       }
@@ -160,11 +423,19 @@ adminRouter.patch(
     }
 
     values.push(id);
-    const { rows } = await pool.query(
-      `UPDATE services SET ${fields.join(', ')} WHERE id = $${paramIndex}
-       RETURNING id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd, is_active`,
-      values
-    );
+    let rows;
+    try {
+      ({ rows } = await pool.query(
+        `UPDATE services SET ${fields.join(', ')} WHERE id = $${paramIndex}
+         RETURNING ${SERVICE_COLUMNS}`,
+        values
+      ));
+    } catch (err) {
+      if (err.code === FOREIGN_KEY_VIOLATION) {
+        return res.status(400).json({ error: 'invalid_category' });
+      }
+      throw err;
+    }
 
     if (!rows[0]) {
       return res.status(404).json({ error: 'service_not_found' });

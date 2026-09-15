@@ -38,6 +38,28 @@ export const api = {
   login: (username, password) =>
     request('/admin/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
 
+  getProfile: () => request('/admin/profile'),
+  updateProfile: (payload) =>
+    request('/admin/profile', { method: 'PUT', body: JSON.stringify(payload) }),
+
+  // The photo goes up as a raw body typed by the file itself — not JSON and
+  // not multipart (the endpoint takes one file and nothing else).
+  uploadPhoto: (file) =>
+    request('/admin/profile/photo', {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    }),
+  deletePhoto: () => request('/admin/profile/photo', { method: 'DELETE' }),
+  photoUrl: (version) => `${API_BASE}/profile/photo?v=${version}`,
+
+  getCategories: () => request('/admin/categories'),
+  createCategory: (payload) =>
+    request('/admin/categories', { method: 'POST', body: JSON.stringify(payload) }),
+  updateCategory: (id, payload) =>
+    request(`/admin/categories/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteCategory: (id) => request(`/admin/categories/${id}`, { method: 'DELETE' }),
+
   getServices: () => request('/admin/services'),
   createService: (payload) =>
     request('/admin/services', { method: 'POST', body: JSON.stringify(payload) }),

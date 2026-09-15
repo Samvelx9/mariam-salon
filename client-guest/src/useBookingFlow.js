@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from './api.js';
 import { DEFAULT_LANG, STRINGS } from './i18n.js';
 
 const INITIAL_FLOW_STATE = {
-  step: 'services',
+  step: 'landing',
+  selectedCategoryId: null,
   selectedServiceId: null,
   slotsData: null,
   slotsLoading: false,
@@ -31,27 +32,45 @@ function errorKeyFor(err) {
 export function useBookingFlow() {
   const [lang, setLangState] = useState(DEFAULT_LANG);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
-  const [services, setServices] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [hours, setHours] = useState([]);
   const [servicesLoading, setServicesLoading] = useState(true);
+  const [catalogueError, setCatalogueError] = useState(false);
   const [flow, setFlow] = useState(INITIAL_FLOW_STATE);
 
   const T = STRINGS[lang];
 
+  // The landing page's three fetches go out together, and the price lists
+  // arrive nested inside the categories — so the whole guest catalogue is
+  // loaded once, up front, and picking a treatment needs no further request.
   useEffect(() => {
     let cancelled = false;
-    api
-      .getServices()
-      .then((data) => {
-        if (!cancelled) setServices(data);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setServicesLoading(false);
+    Promise.allSettled([api.getProfile(), api.getCategories(), api.getHours()])
+      .then(([profileResult, categoriesResult, hoursResult]) => {
+        if (cancelled) return;
+        if (profileResult.status === 'fulfilled') setProfile(profileResult.value);
+        if (hoursResult.status === 'fulfilled') setHours(hoursResult.value);
+        // Profile and hours are decoration — the page still works without
+        // them. The treatments are the page's whole point, so only that one
+        // failing is worth telling the guest about.
+        if (categoriesResult.status === 'fulfilled') {
+          setCategories(categoriesResult.value);
+        } else {
+          setCatalogueError(true);
+        }
+        setServicesLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Flat view of every bookable zone, for the screens that only ever look a
+  // service up by id (calendar, confirmation, manage).
+  const services = useMemo(() => categories.flatMap((c) => c.services), [categories]);
+  const selectedCategory =
+    categories.find((c) => c.id === flow.selectedCategoryId) ?? null;
 
   const patch = (fields) => setFlow((prev) => ({ ...prev, ...fields }));
 
@@ -72,6 +91,10 @@ export function useBookingFlow() {
   const toggleLangMenu = () => setLangMenuOpen((v) => !v);
 
   const selectService = (id) => patch({ selectedServiceId: id });
+
+  const selectCategory = (id) =>
+    patch({ step: 'services', selectedCategoryId: id, selectedServiceId: null, bannerErrorKey: null });
+  const backToLanding = () => patch({ step: 'landing', selectedServiceId: null });
 
   const continueToCalendar = () => {
     patch({ step: 'calendar', bannerErrorKey: null });
@@ -133,10 +156,10 @@ export function useBookingFlow() {
     }
   }
 
-  function resetToServices() {
+  function resetToStart() {
     setFlow({ ...INITIAL_FLOW_STATE });
   }
-  const bookAnother = () => resetToServices();
+  const bookAnother = () => resetToStart();
 
   const goToLookup = () =>
     patch({ step: 'lookup', lookupPhone: '', lookupError: false, bannerErrorKey: null });
@@ -244,10 +267,17 @@ export function useBookingFlow() {
     toggleLangMenu,
     T,
 
+    profile,
+    categories,
+    hours,
     services,
     servicesLoading,
+    catalogueError,
     ...flow,
+    selectedCategory,
 
+    selectCategory,
+    backToLanding,
     selectService,
     continueToCalendar,
     backToServices,

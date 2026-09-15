@@ -1,11 +1,13 @@
 import LangSwitcher from './LangSwitcher.jsx';
 
-const TABS = ['dashboard', 'bookings', 'services', 'availability'];
+const TABS = ['dashboard', 'bookings', 'categories', 'services', 'availability', 'profile'];
 const TAB_LABEL_KEY = {
   dashboard: 'navDashboard',
   bookings: 'navBookings',
+  categories: 'navCategories',
   services: 'navServices',
   availability: 'navAvailability',
+  profile: 'navProfile',
 };
 
 export default function AdminLayout({ T, lang, setLang, tab, setTab, onLogout, children }) {

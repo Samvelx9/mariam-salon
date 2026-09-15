@@ -33,6 +33,19 @@ prompt text behind each step below.
 **All 9 roadmap steps are now complete.** The app is live at http://mariamik.info/
 (guest) and http://mariamik.info/admin/ (admin). See `DONE.md` for full history.
 
+## Landing page (added after the roadmap)
+- [x] Guest app now opens on a landing page (photo, intro, contacts, address, hours)
+      instead of the price list; treatments → zones → booking.
+- [x] Admin gains a **Landing page** tab (profile + photo upload) and a **Treatments**
+      tab (service categories); Services gained a treatment picker and display order.
+- [ ] **Mariam still has to fill the landing page in** — the profile's about text,
+      contacts, address, map link and photo are all blank, so those sections are
+      hidden on the live page until she enters them under Admin → Landing page.
+- [ ] **The price lists are still placeholder data.** The five original seed services
+      plus four sample zones added with the treatments (2 sugaring, 2 electrolysis)
+      all carry invented names and prices. Replace them with Mariam's real zones and
+      prices under Admin → Services.
+
 ## Smaller open items (from the plan's "still to review" list)
 - [ ] Repeat client tracking by phone number — decide if wanted (not currently planned)
 - [ ] Full API endpoint list — gets nailed down as part of Steps 3 & 4

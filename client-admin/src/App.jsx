@@ -7,12 +7,16 @@ import DashboardScreen from './components/DashboardScreen.jsx';
 import BookingsScreen from './components/BookingsScreen.jsx';
 import ServicesScreen from './components/ServicesScreen.jsx';
 import AvailabilityScreen from './components/AvailabilityScreen.jsx';
+import ProfileScreen from './components/ProfileScreen.jsx';
+import CategoriesScreen from './components/CategoriesScreen.jsx';
 
 const SCREENS = {
   dashboard: DashboardScreen,
   bookings: BookingsScreen,
+  categories: CategoriesScreen,
   services: ServicesScreen,
   availability: AvailabilityScreen,
+  profile: ProfileScreen,
 };
 
 export default function App() {

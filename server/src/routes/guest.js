@@ -10,6 +10,7 @@ import { localToUtc, addMinutes } from '../lib/time.js';
 import { notifyTelegram } from '../services/telegram.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
+import { getProfileRow, shapeProfile } from '../services/profile.js';
 
 export const guestRouter = Router();
 
@@ -28,11 +29,70 @@ async function getBookingWithService(id) {
   return rows[0] || null;
 }
 
+// GET /api/profile — everything the landing page says about Mariam
+guestRouter.get('/profile', asyncHandler(async (_req, res) => {
+  const row = await getProfileRow();
+  if (!row) {
+    return res.status(404).json({ error: 'profile_not_found' });
+  }
+  res.json(shapeProfile(row));
+}));
+
+// GET /api/profile/photo — Mariam's photo, served straight from the database.
+// The landing page requests it with the ?v=<photoVersion> from /api/profile,
+// so a long cache lifetime is safe: a new upload changes the URL.
+guestRouter.get('/profile/photo', asyncHandler(async (_req, res) => {
+  const { rows } = await pool.query(
+    'SELECT photo_mime, photo_data, photo_updated_at FROM salon_profile WHERE id = 1'
+  );
+  const row = rows[0];
+  if (!row || !row.photo_data) {
+    return res.status(404).json({ error: 'photo_not_found' });
+  }
+
+  const etag = `W/"photo-${new Date(row.photo_updated_at).getTime()}"`;
+  res.set('Content-Type', row.photo_mime);
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.set('ETag', etag);
+  res.send(row.photo_data);
+}));
+
+// GET /api/categories — the treatments on the landing page, each with the
+// price list (zones) the guest sees after picking one.
+guestRouter.get('/categories', asyncHandler(async (_req, res) => {
+  const { rows: categories } = await pool.query(
+    `SELECT id, slug, name_en, name_ru, name_hy,
+            description_en, description_ru, description_hy
+     FROM service_categories WHERE is_active = true
+     ORDER BY sort_order, id`
+  );
+
+  const { rows: services } = await pool.query(
+    `SELECT id, category_id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd
+     FROM services WHERE is_active = true ORDER BY sort_order, id`
+  );
+
+  const byCategory = new Map(categories.map((c) => [c.id, []]));
+  for (const service of services) {
+    byCategory.get(service.category_id)?.push(service);
+  }
+
+  res.json(categories.map((c) => ({ ...c, services: byCategory.get(c.id) })));
+}));
+
+// GET /api/hours — weekly opening hours, shown next to the salon address
+guestRouter.get('/hours', asyncHandler(async (_req, res) => {
+  const { rows } = await pool.query(
+    'SELECT day_of_week, is_open, start_time, end_time FROM weekly_hours ORDER BY day_of_week'
+  );
+  res.json(rows);
+}));
+
 // GET /api/services — active services for the guest picker
 guestRouter.get('/services', asyncHandler(async (_req, res) => {
   const { rows } = await pool.query(
-    `SELECT id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd
-     FROM services WHERE is_active = true ORDER BY id`
+    `SELECT id, category_id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd
+     FROM services WHERE is_active = true ORDER BY sort_order, id`
   );
   res.json(rows);
 }));

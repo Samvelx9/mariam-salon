@@ -26,6 +26,37 @@ npm run dev:admin    # http://localhost:5174
 
 `GET /api/health` reports server status and whether the database is reachable.
 
+## Guest landing page
+
+The guest app opens on a landing page, not on a price list. It shows Mariam's photo,
+her intro, her contacts, the salon address and opening hours, and the treatments she
+offers — **waxing, sugaring and electrolysis**. Picking a treatment opens the price
+list of zones inside it, and picking a zone starts the existing booking flow
+(time → details → confirmation).
+
+Two layers of content sit behind that page, both editable in the admin dashboard:
+
+- **Landing page** tab (`salon_profile`, a single row) — displayed name, tagline, the
+  "about" text, phone / WhatsApp / Telegram / Instagram / email, the salon address, a
+  map link, and the photo. Every text field exists in Armenian, Russian and English;
+  contacts and the map link are language-independent. Any field left blank simply
+  hides its section on the landing page, so a half-filled profile still looks finished.
+- **Treatments** tab (`service_categories`) — the treatments themselves. Each service
+  belongs to exactly one treatment and acts as a *zone* within it (bikini, full leg,
+  upper lip…), so a treatment's services are its price list. A treatment with no
+  services is hidden from the landing page rather than shown as a dead end.
+
+The photo is stored in Postgres (`salon_profile.photo_data`, at most 4 MB, JPEG/PNG/
+WebP) rather than on disk — the API container has no persistent volume, and it's one
+small image. It is served by `GET /api/profile/photo`, which the landing page requests
+with the `photoVersion` returned by `GET /api/profile` so the response can be cached
+for a day and still update the moment Mariam uploads a new one.
+
+Public endpoints added for this: `GET /api/profile`, `GET /api/profile/photo`,
+`GET /api/categories` (treatments with their zones nested) and `GET /api/hours`.
+Admin endpoints: `GET/PUT /api/admin/profile`, `PUT/DELETE /api/admin/profile/photo`
+and `GET/POST/PATCH/DELETE /api/admin/categories`.
+
 ## Telegram notifications setup
 
 Mariam gets a Telegram message on every new booking and every cancellation. This is a
