@@ -1,9 +1,30 @@
 import { dayLabel, parseLocalDate } from '../i18n.js';
 
+// A taken time is shown, struck through and unclickable, rather than left out:
+// a grid that jumps from 14:30 to 16:00 looks broken, while a greyed 15:00 says
+// plainly that the hour exists and is spoken for. Red marks the ones somebody
+// else has booked; the rest — already past, inside a break, or too late in the
+// day for a booking this long — are plain grey, since there's nothing personal
+// about them.
+const REASON_STYLE = {
+  booked: { color: 'var(--terracotta)', border: 'var(--terracotta-light)', background: 'var(--terracotta-light)' },
+  blocked: { color: 'var(--muted)', border: 'var(--line)', background: 'var(--bg)' },
+  past: { color: 'var(--muted)', border: 'var(--line)', background: 'var(--bg)' },
+  closing: { color: 'var(--muted)', border: 'var(--line)', background: 'var(--bg)' },
+};
+
 export default function SlotPicker({ T, lang, slotsData, slotsLoading, selectedDayIndex, selectedSlot, selectDay, selectSlot }) {
   const days = slotsData?.days ?? [];
-  const daySlots = days[selectedDayIndex]?.slots ?? [];
+  const day = days[selectedDayIndex];
   const isTodaySelected = selectedDayIndex === 0;
+
+  // One grid in clock order, free and taken together.
+  const daySlots = [
+    ...(day?.slots ?? []).map((time) => ({ time, reason: null })),
+    ...(day?.unavailable ?? []),
+  ].sort((a, b) => a.time.localeCompare(b.time));
+  const anyBooked = daySlots.some((s) => s.reason === 'booked');
+  const anyFree = daySlots.some((s) => s.reason === null);
 
   return (
     <div className="scrollarea" style={{ flex: 1, overflowY: 'auto', padding: '4px 0 8px' }}>
@@ -53,29 +74,55 @@ export default function SlotPicker({ T, lang, slotsData, slotsLoading, selectedD
         <div style={{ padding: '4px 24px 24px' }}>
           <span style={{ fontSize: 14, color: 'var(--muted)' }}>{T.loading}</span>
         </div>
-      ) : daySlots.length > 0 ? (
-        <div style={{ padding: '4px 24px 24px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
-          {daySlots.map((time) => {
-            const selected = time === selectedSlot;
-            return (
-              <button
-                key={time}
-                onClick={() => selectSlot(time)}
+      ) : anyFree ? (
+        <>
+          <div style={{ padding: '4px 24px 8px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+            {daySlots.map(({ time, reason }) => {
+              const selected = time === selectedSlot;
+              const style = reason ? REASON_STYLE[reason] ?? REASON_STYLE.blocked : null;
+              return (
+                <button
+                  key={time}
+                  onClick={() => !reason && selectSlot(time)}
+                  disabled={Boolean(reason)}
+                  aria-label={reason === 'booked' ? `${time} — ${T.slotTakenTag}` : time}
+                  style={{
+                    padding: '12px 0',
+                    borderRadius: 12,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: reason ? 'default' : 'pointer',
+                    textDecoration: reason ? 'line-through' : 'none',
+                    border: style
+                      ? `1px solid ${style.border}`
+                      : selected
+                        ? '1.5px solid var(--terracotta)'
+                        : '1px solid var(--line)',
+                    background: style ? style.background : selected ? 'var(--terracotta)' : 'var(--surface)',
+                    color: style ? style.color : selected ? 'var(--white)' : 'var(--ink)',
+                  }}
+                >
+                  {time}
+                </button>
+              );
+            })}
+          </div>
+          {anyBooked && (
+            <div style={{ padding: '0 24px 24px', display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span
                 style={{
-                  padding: '12px 0',
-                  borderRadius: 12,
-                  border: selected ? '1.5px solid var(--terracotta)' : '1px solid var(--line)',
-                  background: selected ? 'var(--terracotta)' : 'var(--surface)',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: selected ? 'var(--white)' : 'var(--ink)',
+                  width: 10,
+                  height: 10,
+                  borderRadius: 3,
+                  background: 'var(--terracotta-light)',
+                  border: '1px solid var(--terracotta)',
+                  flexShrink: 0,
                 }}
-              >
-                {time}
-              </button>
-            );
-          })}
-        </div>
+              />
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.slotTakenTag}</span>
+            </div>
+          )}
+        </>
       ) : (
         <div
           style={{

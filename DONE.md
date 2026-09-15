@@ -414,3 +414,15 @@ clean-up work earlier the same day.
   because the backend image is built with `server/` as its entire Docker context
   and cannot import the shared package at runtime (the same reason
   `src/lib/time.js` exists).
+
+- **Taken times stay on the grid.** The slot list used to contain only bookable
+  times, so an hour someone else had booked simply wasn't there and the grid
+  jumped from 14:30 to 16:00 — which reads as a glitch rather than as
+  information. Each day in `GET /api/services/:id/slots` now also carries
+  `unavailable`: the same 30-minute grid positions that can't be taken, each
+  with a reason (`booked`, `past`, `blocked` for a break or a date block,
+  `closing` for a start too late to fit the chosen length). The picker shows
+  them struck through and unclickable — red for times another client has, plain
+  grey for the rest, since there is nothing personal about a lunch break — with
+  a small legend when any are red. `slots` keeps its old meaning (bookable times
+  only), so the QA suite and the reschedule picker were untouched by this.

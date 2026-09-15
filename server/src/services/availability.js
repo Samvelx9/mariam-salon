@@ -73,6 +73,11 @@ export async function getActiveService(serviceId) {
 // availability (weekly hours minus date-specific blocks) minus existing
 // non-cancelled bookings minus the cutoff window. Always queried fresh
 // (no caching) to keep the double-booking race window as small as possible.
+//
+// Each day also carries `unavailable`: the times on the same grid that can't be
+// taken, and why. The picker shows those greyed out rather than dropping them,
+// so a guest can see that 15:00 exists and is spoken for — a list that silently
+// skips from 14:30 to 16:00 reads like a glitch.
 export async function getAvailableSlots(service, { excludeBookingId, durationMinutes } = {}) {
   const slotLength = durationMinutes || service.duration_minutes;
   const startDate = todayDateStr();
@@ -111,6 +116,7 @@ export async function getAvailableSlots(service, { excludeBookingId, durationMin
     const date = addDaysToDateStr(startDate, i);
     const hours = hoursByDow.get(dayOfWeek(date));
     const slots = [];
+    const unavailable = [];
 
     if (hours && hours.is_open) {
       const dayBlocks = blocksByDate.get(date) || [];
@@ -129,27 +135,36 @@ export async function getAvailableSlots(service, { excludeBookingId, durationMin
         const dayStart = localToUtc(date, hours.start_time);
         const dayEnd = localToUtc(date, hours.end_time);
 
+        // Walks every start on the grid, not only the ones that fit: a start
+        // that doesn't work is reported with its reason instead of vanishing.
         for (
           let slotStart = dayStart;
-          addMinutes(slotStart, slotLength) <= dayEnd;
+          slotStart < dayEnd;
           slotStart = addMinutes(slotStart, SLOT_INTERVAL_MINUTES)
         ) {
           const slotEnd = addMinutes(slotStart, slotLength);
+          const time = utcToLocalTimeStr(slotStart);
 
-          if (slotStart < cutoffInstant) continue;
-          if (partialBlocks.some(([bs, be]) => overlaps(slotStart, slotEnd, bs, be))) continue;
-          if (
+          if (slotStart < cutoffInstant) {
+            unavailable.push({ time, reason: 'past' });
+          } else if (slotEnd > dayEnd) {
+            // Would run past closing — true of every later start too, but the
+            // guest still needs to see the times exist.
+            unavailable.push({ time, reason: 'closing' });
+          } else if (partialBlocks.some(([bs, be]) => overlaps(slotStart, slotEnd, bs, be))) {
+            unavailable.push({ time, reason: 'blocked' });
+          } else if (
             existingBookings.some((b) => overlaps(slotStart, slotEnd, b.start_time, b.end_time))
           ) {
-            continue;
+            unavailable.push({ time, reason: 'booked' });
+          } else {
+            slots.push(time);
           }
-
-          slots.push(utcToLocalTimeStr(slotStart));
         }
       }
     }
 
-    days.push({ date, slots });
+    days.push({ date, slots, unavailable });
   }
 
   return days;
