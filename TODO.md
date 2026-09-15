@@ -88,6 +88,23 @@ prompt text behind each step below.
         Samvel). So a guest booking electrolysis pays 2 500 ֏ for half an hour,
         10 000 ֏ for two, and so on, picking the length against the schedule.
 
+## Multi-zone visits and booking edits (added 2026-09-16)
+- [x] **A booking can cover several zones**, from several treatments — the zones
+      live in `booking_items` (migration `1789390653110_booking-items`), each
+      snapshotting its own price and duration; `bookings.service_id` is gone.
+      Guests tick zones and the basket survives going back for another
+      treatment. Slots are asked for by length (`GET /api/slots`), since what
+      decides which starts work is how long the whole visit runs.
+- [x] **Admin can edit any booking** — `PATCH /api/admin/bookings/:id` and an
+      edit form under each row: zones, date, time, client, status. Changing the
+      zones recomputes the length and the total; an edit that would overlap
+      another booking is refused by the database, not by the form.
+- [ ] **Old QA suite predates multi-zone bookings.** `server/test/qa.test.js`
+      still posts `serviceId` (accepted — a single-zone booking is a basket of
+      one) and reads `days[].slots` from the per-service route, so it should
+      still pass, but it has not been re-run since the change. Worth a run
+      before the next deploy: see "Dev workflow note" below for how.
+
 ## Smaller open items (from the plan's "still to review" list)
 - [ ] Repeat client tracking by phone number — decide if wanted (not currently planned)
 - [ ] Full API endpoint list — gets nailed down as part of Steps 3 & 4

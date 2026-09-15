@@ -426,3 +426,37 @@ clean-up work earlier the same day.
   grey for the rest, since there is nothing personal about a lunch break — with
   a small legend when any are red. `slots` keeps its old meaning (bookable times
   only), so the QA suite and the reschedule picker were untouched by this.
+
+## Multi-zone visits and booking edits (2026-09-16)
+
+- **A visit is now a set of zones.** `booking_items` holds one row per zone with
+  its own duration and price snapshot; the booking keeps what is true of the
+  whole visit (when it runs, who it's for, the total). `bookings.service_id` was
+  dropped rather than left as a second, quietly diverging answer to "which zones
+  is this booking for". The migration backfills every existing booking as a
+  one-item booking, taking the duration from the booking's own start/end rather
+  than from the service — an hourly booking's length was the client's choice and
+  the service's figure would have been wrong.
+- **Guests tick zones instead of picking one**, and the basket survives going
+  back to the landing page, so a visit can span waxing and sugaring. Slots moved
+  from `GET /api/services/:id/slots` to `GET /api/slots?durationMinutes=`, since
+  the question is how long the visit runs, not which single zone it is; the
+  per-service route stays for the QA suite and the single-zone case. Each hourly
+  zone in the basket keeps its own stepper on the schedule screen.
+- **Income by service now sums `booking_items`** while the completed-bookings
+  figure counts bookings — a three-zone visit is three lines of income and one
+  visit. Verified live: a two-zone completed booking showed 5 000 + 4 000 across
+  two lines, 9 000 total, `bookingsCompleted: 1`.
+- **Editing a booking** (`PATCH /api/admin/bookings/:id`) takes any subset of
+  zones, date, time, client and status. Changing the zones recomputes the length
+  and the total; moving one onto another booking returns `409 slot_taken` and
+  changes nothing. Verified by removing a zone and moving the time in one edit:
+  11 000 ֏ / 60 min became 9 000 ֏ / 45 min at the new hour.
+- **Checked against the real database before migrating**: the whole migration
+  plus the new reads, the financial split and the FK that stops a service with
+  history being deleted, all run inside a transaction that was rolled back.
+  Still missed one thing that only the live path showed — `COALESCE($5,
+  'confirmed')` types the parameter as text, which Postgres refuses to assign to
+  the `booking_status` enum, so every create 500'd until the cast was added.
+  Worth remembering: a dry run on real data does not exercise the code path, and
+  walking the actual flow in the browser is what caught it.
