@@ -19,6 +19,7 @@ export const adminRouter = Router();
 const FOREIGN_KEY_VIOLATION = '23503';
 const CHECK_VIOLATION = '23514';
 const UNIQUE_VIOLATION = '23505';
+const EXCLUSION_VIOLATION = '23P01';
 const BOOKING_STATUSES = ['confirmed', 'completed', 'cancelled', 'no_show'];
 const PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
@@ -474,11 +475,40 @@ adminRouter.delete(
 // Availability
 // ---------------------------------------------------------------------------
 
+const WEEKLY_COLUMNS = 'day_of_week, is_open, start_time, end_time, lunch_start, lunch_end';
+
+// Shared by the single-day and whole-week endpoints: a day is either closed
+// (times cleared) or open with a start before its end, optionally with a lunch
+// break that has to sit inside those hours. Returns { error } or { values }.
+function readWeeklyDay(body, dayOfWeek) {
+  const isOpen = Boolean(body?.isOpen);
+  if (!isOpen) return { values: [dayOfWeek, false, null, null, null, null] };
+
+  const startTime = body?.startTime;
+  const endTime = body?.endTime;
+  if (!isValidTime(startTime) || !isValidTime(endTime) || startTime >= endTime) {
+    return { error: 'invalid_hours' };
+  }
+
+  const hasLunch = Boolean(body?.hasLunch ?? (body?.lunchStart && body?.lunchEnd));
+  if (!hasLunch) return { values: [dayOfWeek, true, startTime, endTime, null, null] };
+
+  const lunchStart = body?.lunchStart;
+  const lunchEnd = body?.lunchEnd;
+  if (!isValidTime(lunchStart) || !isValidTime(lunchEnd) || lunchStart >= lunchEnd) {
+    return { error: 'invalid_lunch' };
+  }
+  if (lunchStart < startTime || lunchEnd > endTime) {
+    return { error: 'lunch_outside_hours' };
+  }
+  return { values: [dayOfWeek, true, startTime, endTime, lunchStart, lunchEnd] };
+}
+
 adminRouter.get(
   '/availability/weekly',
   asyncHandler(async (_req, res) => {
     const { rows } = await pool.query(
-      'SELECT day_of_week, is_open, start_time, end_time FROM weekly_hours ORDER BY day_of_week'
+      `SELECT ${WEEKLY_COLUMNS} FROM weekly_hours ORDER BY day_of_week`
     );
     res.json(rows);
   })
@@ -504,17 +534,11 @@ adminRouter.put(
       }
       seen.add(dayOfWeek);
 
-      const isOpen = Boolean(day?.isOpen);
-      let startTime = null;
-      let endTime = null;
-      if (isOpen) {
-        startTime = day?.startTime;
-        endTime = day?.endTime;
-        if (!isValidTime(startTime) || !isValidTime(endTime) || startTime >= endTime) {
-          return res.status(400).json({ error: 'invalid_hours', dayOfWeek });
-        }
+      const parsed = readWeeklyDay(day, dayOfWeek);
+      if (parsed.error) {
+        return res.status(400).json({ error: parsed.error, dayOfWeek });
       }
-      updates.push([dayOfWeek, isOpen, startTime, endTime]);
+      updates.push(parsed.values);
     }
 
     const client = await pool.connect();
@@ -522,7 +546,8 @@ adminRouter.put(
       await client.query('BEGIN');
       for (const values of updates) {
         const { rowCount } = await client.query(
-          `UPDATE weekly_hours SET is_open = $2, start_time = $3, end_time = $4
+          `UPDATE weekly_hours
+           SET is_open = $2, start_time = $3, end_time = $4, lunch_start = $5, lunch_end = $6
            WHERE day_of_week = $1`,
           values
         );
@@ -540,7 +565,7 @@ adminRouter.put(
     }
 
     const { rows } = await pool.query(
-      'SELECT day_of_week, is_open, start_time, end_time FROM weekly_hours ORDER BY day_of_week'
+      `SELECT ${WEEKLY_COLUMNS} FROM weekly_hours ORDER BY day_of_week`
     );
     res.json(rows);
   })
@@ -554,23 +579,17 @@ adminRouter.put(
       return res.status(400).json({ error: 'invalid_day_of_week' });
     }
 
-    const isOpen = Boolean(req.body?.isOpen);
-    let startTime = null;
-    let endTime = null;
-
-    if (isOpen) {
-      startTime = req.body?.startTime;
-      endTime = req.body?.endTime;
-      if (!isValidTime(startTime) || !isValidTime(endTime) || startTime >= endTime) {
-        return res.status(400).json({ error: 'invalid_hours' });
-      }
+    const parsed = readWeeklyDay(req.body, dayOfWeek);
+    if (parsed.error) {
+      return res.status(400).json({ error: parsed.error });
     }
 
     const { rows } = await pool.query(
-      `UPDATE weekly_hours SET is_open = $2, start_time = $3, end_time = $4
+      `UPDATE weekly_hours
+       SET is_open = $2, start_time = $3, end_time = $4, lunch_start = $5, lunch_end = $6
        WHERE day_of_week = $1
-       RETURNING day_of_week, is_open, start_time, end_time`,
-      [dayOfWeek, isOpen, startTime, endTime]
+       RETURNING ${WEEKLY_COLUMNS}`,
+      parsed.values
     );
 
     if (!rows[0]) {
@@ -680,6 +699,63 @@ adminRouter.get(
 
     const { rows } = await pool.query(query, params);
     res.json(rows);
+  })
+);
+
+// A booking Mariam takes herself — over the phone, or a walk-in she's writing
+// down after the fact. Deliberately looser than the guest flow: no 90-minute
+// cutoff and no opening-hours check, because she is allowed to squeeze someone
+// in early, late, or on a day the salon is normally shut. The one rule that
+// still holds is the overlap constraint — two clients can't share a slot — and
+// that is enforced by the database, not here.
+adminRouter.post(
+  '/bookings',
+  asyncHandler(async (req, res) => {
+    const serviceId = Number(req.body?.serviceId);
+    const date = req.body?.date;
+    const time = req.body?.time;
+    const customerName = cleanString(req.body?.customerName, 100);
+    const customerPhone = cleanString(req.body?.customerPhone, 30);
+    const status = req.body?.status ?? 'confirmed';
+
+    if (!Number.isInteger(serviceId) || !isValidDate(date) || !isValidTime(time)) {
+      return res.status(400).json({ error: 'invalid_request' });
+    }
+    if (!customerName || !customerPhone) {
+      return res.status(400).json({ error: 'missing_customer_details' });
+    }
+    if (!BOOKING_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'invalid_status' });
+    }
+
+    const { rows: serviceRows } = await pool.query(
+      `SELECT id, duration_minutes, price_amd FROM services WHERE id = $1`,
+      [serviceId]
+    );
+    const service = serviceRows[0];
+    if (!service) {
+      return res.status(404).json({ error: 'service_not_found' });
+    }
+
+    const startTime = localToUtc(date, time);
+    const endTime = new Date(startTime.getTime() + service.duration_minutes * 60_000);
+
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO bookings
+           (service_id, start_time, end_time, customer_name, customer_phone, status, price_at_booking)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, service_id, start_time, end_time, customer_name, customer_phone,
+                   status, price_at_booking`,
+        [serviceId, startTime, endTime, customerName, customerPhone, status, service.price_amd]
+      );
+      res.status(201).json(rows[0]);
+    } catch (err) {
+      if (err.code === EXCLUSION_VIOLATION) {
+        return res.status(409).json({ error: 'slot_taken' });
+      }
+      throw err;
+    }
   })
 );
 
@@ -805,6 +881,79 @@ adminRouter.post(
       [category, description, amount_amd, date]
     );
     res.status(201).json(rows[0]);
+  })
+);
+
+// An expense is a note to self, not a record anyone else relies on, so a typo
+// is corrected or the whole row dropped. Each field is optional; one left out
+// keeps its current value.
+adminRouter.patch(
+  '/expenses/:id',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid_expense_id' });
+    }
+
+    const fields = [];
+    const values = [];
+
+    if (req.body?.category !== undefined) {
+      const category = cleanString(req.body.category, 100);
+      if (!category) return res.status(400).json({ error: 'missing_category' });
+      values.push(category);
+      fields.push(`category = $${values.length}`);
+    }
+    if (req.body?.description !== undefined) {
+      values.push(cleanString(req.body.description, 300) || null);
+      fields.push(`description = $${values.length}`);
+    }
+    if (req.body?.amountAmd !== undefined) {
+      const amount = Number(req.body.amountAmd);
+      if (!Number.isInteger(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'invalid_amount' });
+      }
+      values.push(amount);
+      fields.push(`amount_amd = $${values.length}`);
+    }
+    if (req.body?.date !== undefined) {
+      if (!isValidDate(req.body.date)) {
+        return res.status(400).json({ error: 'invalid_date' });
+      }
+      values.push(req.body.date);
+      fields.push(`date = $${values.length}`);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'no_fields_to_update' });
+    }
+
+    values.push(id);
+    const { rows } = await pool.query(
+      `UPDATE expenses SET ${fields.join(', ')} WHERE id = $${values.length}
+       RETURNING id, category, description, amount_amd, date`,
+      values
+    );
+    if (!rows[0]) {
+      return res.status(404).json({ error: 'expense_not_found' });
+    }
+    res.json(rows[0]);
+  })
+);
+
+adminRouter.delete(
+  '/expenses/:id',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid_expense_id' });
+    }
+
+    const { rowCount } = await pool.query('DELETE FROM expenses WHERE id = $1', [id]);
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'expense_not_found' });
+    }
+    res.status(204).end();
   })
 );
 

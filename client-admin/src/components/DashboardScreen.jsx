@@ -26,6 +26,12 @@ export default function DashboardScreen({ T, lang, onAuthError }) {
 
   const [newExpense, setNewExpense] = useState({ category: '', description: '', amountAmd: '', date: todayStr() });
   const [adding, setAdding] = useState(false);
+  // One expense row at a time is either being edited or being confirmed for
+  // deletion — same inline pattern as Services, so the form sits under the row.
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -70,6 +76,53 @@ export default function DashboardScreen({ T, lang, onAuthError }) {
       if (!onAuthError(err)) setError('genericError');
     } finally {
       setAdding(false);
+    }
+  }
+
+  function startEditExpense(exp) {
+    setConfirmingDeleteId(null);
+    setEditingId(exp.id);
+    setEditForm({
+      category: exp.category,
+      description: exp.description || '',
+      amountAmd: String(exp.amount_amd),
+      date: exp.date,
+    });
+  }
+
+  async function saveExpense() {
+    const amount = Number(editForm.amountAmd);
+    if (!editForm.category.trim() || !Number.isInteger(amount) || amount <= 0 || !editForm.date) {
+      setError('genericError');
+      return;
+    }
+    setSavingEdit(true);
+    setError(null);
+    try {
+      await api.updateExpense(editingId, {
+        category: editForm.category.trim(),
+        description: editForm.description.trim(),
+        amountAmd: amount,
+        date: editForm.date,
+      });
+      setEditingId(null);
+      await load();
+    } catch (err) {
+      if (!onAuthError(err)) setError('genericError');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function removeExpense(id) {
+    setError(null);
+    try {
+      await api.deleteExpense(id);
+      setConfirmingDeleteId(null);
+      if (editingId === id) setEditingId(null);
+      await load();
+    } catch (err) {
+      if (!onAuthError(err)) setError('genericError');
     }
   }
 
@@ -196,15 +249,87 @@ export default function DashboardScreen({ T, lang, onAuthError }) {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {expenses.slice(0, 10).map((exp) => (
-                  <div key={exp.id} className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{exp.category}</span>
-                      <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-                        {formatDate(parseLocalDate(exp.date), lang)}
-                        {exp.description ? ` · ${exp.description}` : ''}
-                      </span>
+                  <div key={exp.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>{exp.category}</span>
+                        <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                          {formatDate(parseLocalDate(exp.date), lang)}
+                          {exp.description ? ` · ${exp.description}` : ''}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--terracotta)' }}>
+                          {formatPrice(exp.amount_amd, lang)}
+                        </span>
+                        {confirmingDeleteId === exp.id ? (
+                          <>
+                            <span style={{ fontSize: 12.5, color: 'var(--terracotta)' }}>{T.confirmDeleteExpense}</span>
+                            <button className="btn-danger-outline" onClick={() => removeExpense(exp.id)}>
+                              {T.confirmDeleteBtn}
+                            </button>
+                            <button className="btn-outline" onClick={() => setConfirmingDeleteId(null)}>
+                              {T.cancelBtn}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button className="btn-outline" onClick={() => startEditExpense(exp)} disabled={editingId === exp.id}>
+                              {T.editBtn}
+                            </button>
+                            <button className="btn-danger-outline" onClick={() => setConfirmingDeleteId(exp.id)}>
+                              {T.deleteBtn}
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--terracotta)' }}>{formatPrice(exp.amount_amd, lang)}</span>
+                    {editingId === exp.id && (
+                      <div
+                        className="card"
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 12,
+                          marginLeft: 16,
+                          borderLeft: '3px solid var(--terracotta)',
+                          background: 'var(--bg)',
+                        }}
+                      >
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+                          <ExpenseField
+                            label={T.categoryLabel}
+                            value={editForm.category}
+                            onChange={(v) => setEditForm({ ...editForm, category: v })}
+                          />
+                          <ExpenseField
+                            label={T.descriptionLabel}
+                            value={editForm.description}
+                            onChange={(v) => setEditForm({ ...editForm, description: v })}
+                          />
+                          <ExpenseField
+                            label={T.amountLabel}
+                            type="number"
+                            value={editForm.amountAmd}
+                            onChange={(v) => setEditForm({ ...editForm, amountAmd: v })}
+                          />
+                          <ExpenseField
+                            label={T.dateLabel}
+                            type="date"
+                            value={editForm.date}
+                            onChange={(v) => setEditForm({ ...editForm, date: v })}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button className="btn-primary" onClick={saveExpense} disabled={savingEdit}>
+                            {T.saveBtn}
+                          </button>
+                          <button className="btn-outline" onClick={() => setEditingId(null)} disabled={savingEdit}>
+                            {T.cancelBtn}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -212,6 +337,15 @@ export default function DashboardScreen({ T, lang, onAuthError }) {
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+function ExpenseField({ label, value, onChange, type = 'text' }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</label>
+      <input className="field-input" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }

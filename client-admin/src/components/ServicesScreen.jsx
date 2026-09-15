@@ -20,6 +20,9 @@ export default function ServicesScreen({ T, lang, onAuthError }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  // Treatments start folded: with a dozen zones each, an unfolded list is a
+  // wall of rows. Opening one is how you get at its price list.
+  const [openCategoryId, setOpenCategoryId] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -50,6 +53,7 @@ export default function ServicesScreen({ T, lang, onAuthError }) {
   }
 
   function startEdit(s) {
+    setOpenCategoryId(s.category_id);
     setForm({
       nameEn: s.name_en,
       nameRu: s.name_ru,
@@ -163,21 +167,57 @@ export default function ServicesScreen({ T, lang, onAuthError }) {
         <p style={{ color: 'var(--muted)' }}>{T.loading}</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-          {groupByCategory(services, categories).map(({ category, rows }) => (
-            <div key={category?.id ?? 'none'} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <h3
+          {groupByCategory(services, categories).map(({ category, rows }) => {
+            const groupId = category?.id ?? 'none';
+            const isOpen = openCategoryId === groupId;
+            return (
+            <div key={groupId} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={() => setOpenCategoryId(isOpen ? null : groupId)}
+                aria-expanded={isOpen}
+                className="card"
                 style={{
-                  fontFamily: "'Karla',sans-serif",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: 'var(--muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  background: isOpen ? 'var(--sage-light)' : 'var(--surface)',
                 }}
               >
-                {category ? category[`name_${lang}`] : T.uncategorized}
-              </h3>
-              {rows.map((s) => (
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  style={{
+                    stroke: 'var(--muted)',
+                    strokeWidth: 3,
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                    transform: isOpen ? 'rotate(90deg)' : 'none',
+                    transition: 'transform 120ms ease',
+                    flexShrink: 0,
+                  }}
+                >
+                  <path d="M9 6L15 12L9 18"></path>
+                </svg>
+                <span
+                  style={{
+                    fontFamily: "'Karla',sans-serif",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {category ? category[`name_${lang}`] : T.uncategorized}
+                </span>
+                <span style={{ fontSize: 12.5, color: 'var(--muted)', marginLeft: 'auto' }}>
+                  {rows.length} {T.zonesInCategory}
+                </span>
+              </button>
+              {isOpen && rows.map((s) => (
                 <div key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <ServiceRow
                     T={T}
@@ -204,7 +244,8 @@ export default function ServicesScreen({ T, lang, onAuthError }) {
                 </div>
               ))}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

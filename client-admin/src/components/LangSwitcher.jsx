@@ -1,10 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LANG_META, LANG_ORDER } from '../i18n.js';
 
 export default function LangSwitcher({ lang, setLang }) {
   const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  // A dropdown that only closes by picking an option traps you into changing
+  // the language just to dismiss it — so a click anywhere else, or Escape,
+  // closes it too. Listening on pointerdown rather than click means the menu is
+  // gone before the click lands on whatever was underneath it.
+  useEffect(() => {
+    if (!open) return undefined;
+    function onPointerDown(event) {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    }
+    function onKeyDown(event) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={rootRef} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
@@ -17,7 +39,9 @@ export default function LangSwitcher({ lang, setLang }) {
           background: 'var(--white)',
         }}
       >
-        <span style={{ fontSize: 16, lineHeight: 1 }}>{LANG_META[lang].flag}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.04em', lineHeight: 1 }}>
+          {LANG_META[lang].code}
+        </span>
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--muted)', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
           <path d="M6 9L12 15L18 9"></path>
         </svg>
@@ -57,7 +81,9 @@ export default function LangSwitcher({ lang, setLang }) {
                 textAlign: 'left',
               }}
             >
-              <span style={{ fontSize: 16 }}>{LANG_META[code].flag}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', minWidth: 20 }}>
+                {LANG_META[code].code}
+              </span>
               <span style={{ fontSize: 13, fontWeight: code === lang ? 700 : 500, color: 'var(--ink)' }}>
                 {LANG_META[code].name}
               </span>

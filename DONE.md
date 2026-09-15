@@ -343,3 +343,45 @@
   live site** via `/opt/app/deploy.sh` (the Step 8 redeploy path) — confirmed
   working end-to-end as the first real "push code → redeploy" cycle since initial
   deployment.
+
+
+## Admin usability round (2026-09-15, after Mariam's first look)
+
+Six changes she asked for after using the live dashboard, plus the price-list and
+clean-up work earlier the same day.
+
+- **Mariam's real price list** replaced the placeholder services: the twelve zones
+  from her printed sugar/wax sheet, seeded identically under Waxing and Sugaring
+  (migration `1789390653080_real-price-list`), which also cleared the 76 QA
+  bookings still pointing at the old sample services. Electrolysis is deliberately
+  left with no zones — she hasn't priced it, and an empty treatment is hidden from
+  the landing page rather than shown with invented numbers. Durations aren't on her
+  sheet, so those are working estimates for her to review.
+- **Bulk delete of cancelled bookings** (`DELETE /api/admin/bookings` taking a list
+  of ids). Only cancelled rows can go: a confirmed booking is a commitment and a
+  completed one is a line in the financial history, so the endpoint refuses both
+  and reports what it skipped — verified live by asking it to delete a confirmed
+  booking and getting `{deleted: 0, skipped: [110]}` back. Confirmation is inline
+  rather than a native `confirm()` dialog, which hid the count and blocked the page.
+- **Manual bookings** — see TODO's note on why they skip the guest flow's checks.
+  The overlap guard is the database's `EXCLUDE` constraint, surfaced as a friendly
+  `409 slot_taken`, so a manual booking can't quietly double-book a real client.
+- **Calendar views on Bookings.** Month grid (Monday-first, count badge per day,
+  today outlined, open day tinted) with that day's bookings listed underneath, and
+  a year view of twelve month cards carrying bookings / completed / income. Income
+  counts completed bookings only, the same rule the dashboard uses, so the two
+  figures never disagree. Month names come from our own tables rather than ICU, for
+  the Armenian reason recorded in Step 9 above.
+- **Editing and inline forms**: Services and Treatments now open their edit form
+  under the row being edited instead of at the top of the page; Services folds by
+  treatment; expenses gained edit and delete.
+- **Availability**: one Edit / one Save for the whole week, saved transactionally
+  through `PUT /api/admin/availability/weekly` so a week can't land half-written,
+  plus a per-day lunch break stored on `weekly_hours` rather than as a recurring
+  block — it belongs to the working pattern, and Mariam edits all three times
+  together. The break is excluded from bookable slots in both places that compute
+  availability (`getAvailableSlots` and `isSlotWithinAvailability`).
+- **Language switcher** closes on an outside click or Escape in both apps, and is
+  labelled by language code. The flag emoji it used to show falls back to the
+  country's letter pair without an emoji flag font, so English appeared as "GB" —
+  and a language is better labelled by its own code anyway.

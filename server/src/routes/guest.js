@@ -83,7 +83,8 @@ guestRouter.get('/categories', asyncHandler(async (_req, res) => {
 // GET /api/hours — weekly opening hours, shown next to the salon address
 guestRouter.get('/hours', asyncHandler(async (_req, res) => {
   const { rows } = await pool.query(
-    'SELECT day_of_week, is_open, start_time, end_time FROM weekly_hours ORDER BY day_of_week'
+    `SELECT day_of_week, is_open, start_time, end_time, lunch_start, lunch_end
+     FROM weekly_hours ORDER BY day_of_week`
   );
   res.json(rows);
 }));

@@ -23,7 +23,7 @@ function overlaps(aStart, aEnd, bStart, bEnd) {
 // not against booking outside business hours or into a blocked window.
 export async function isSlotWithinAvailability(date, startUtc, endUtc) {
   const { rows: hoursRows } = await pool.query(
-    'SELECT is_open, start_time, end_time FROM weekly_hours WHERE day_of_week = $1',
+    'SELECT is_open, start_time, end_time, lunch_start, lunch_end FROM weekly_hours WHERE day_of_week = $1',
     [dayOfWeek(date)]
   );
   const hours = hoursRows[0];
@@ -32,6 +32,13 @@ export async function isSlotWithinAvailability(date, startUtc, endUtc) {
   const dayStart = localToUtc(date, hours.start_time);
   const dayEnd = localToUtc(date, hours.end_time);
   if (startUtc < dayStart || endUtc > dayEnd) return false;
+
+  // The lunch break closes the middle of the day exactly like a block does.
+  if (hours.lunch_start) {
+    const lunchStart = localToUtc(date, hours.lunch_start);
+    const lunchEnd = localToUtc(date, hours.lunch_end);
+    if (overlaps(startUtc, endUtc, lunchStart, lunchEnd)) return false;
+  }
 
   const { rows: blocks } = await pool.query(
     'SELECT start_time, end_time FROM availability_blocks WHERE date = $1',
@@ -68,7 +75,7 @@ export async function getAvailableSlots(service, { excludeBookingId } = {}) {
   const cutoffInstant = addMinutes(new Date(), CUTOFF_MINUTES);
 
   const { rows: weeklyHours } = await pool.query(
-    'SELECT day_of_week, is_open, start_time, end_time FROM weekly_hours'
+    'SELECT day_of_week, is_open, start_time, end_time, lunch_start, lunch_end FROM weekly_hours'
   );
   const hoursByDow = new Map(weeklyHours.map((h) => [h.day_of_week, h]));
 
@@ -106,6 +113,11 @@ export async function getAvailableSlots(service, { excludeBookingId } = {}) {
         const partialBlocks = dayBlocks
           .filter((b) => b.start_time !== null)
           .map((b) => [localToUtc(date, b.start_time), localToUtc(date, b.end_time)]);
+
+        // The weekday's lunch break behaves as one more blocked window.
+        if (hours.lunch_start) {
+          partialBlocks.push([localToUtc(date, hours.lunch_start), localToUtc(date, hours.lunch_end)]);
+        }
 
         const dayStart = localToUtc(date, hours.start_time);
         const dayEnd = localToUtc(date, hours.end_time);

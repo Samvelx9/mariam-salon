@@ -51,6 +51,29 @@ prompt text behind each step below.
         treatment is hidden from the landing page until she adds them, rather
         than showing invented numbers.
 
+## Admin usability round (added 2026-09-15, after Mariam's first look)
+- [x] **Add bookings by hand** — `POST /api/admin/bookings` plus a form on the
+      Bookings tab, for phone bookings and walk-ins. Deliberately skips the
+      opening-hours and 90-minute-cutoff checks the guest flow applies (Mariam
+      may squeeze someone in whenever she likes); only an overlap with an
+      existing booking is refused, by the database's own constraint. Sends no
+      Telegram notification — she is the one entering it.
+- [x] **Calendar on the Bookings tab** — month grid with a per-day count and the
+      open day's bookings listed underneath, and a year view of twelve months
+      with bookings/completed/income beside each. Filtering to Cancelled still
+      switches to the flat clean-up list.
+- [x] **Services fold by treatment** — each treatment is a row that opens to show
+      its zones, so the page starts as three lines instead of twenty-four.
+- [x] **Expenses can be edited and deleted** — `PATCH`/`DELETE
+      /api/admin/expenses/:id` and inline controls on each recent-expense row.
+      (This replaces the old "no delete endpoint exists by design" note below.)
+- [x] **Language menu closes on an outside click or Escape**, in both apps, and
+      shows `HY` / `RU` / `EN` rather than flag emoji — the flags fell back to
+      country letter pairs, so English read as "GB".
+- [x] **Lunch break per weekday** — `weekly_hours.lunch_start` / `lunch_end`
+      (migration `1789390653090_weekly-lunch-break`), edited with the rest of the
+      week, and excluded from the guest's bookable slots.
+
 ## Smaller open items (from the plan's "still to review" list)
 - [ ] Repeat client tracking by phone number — decide if wanted (not currently planned)
 - [ ] Full API endpoint list — gets nailed down as part of Steps 3 & 4
@@ -64,8 +87,8 @@ Remember to close the tunnel when done.
 To re-run the QA suite later (e.g. before a future deploy): with the server running
 as above, `QA_ADMIN_USERNAME=... QA_ADMIN_PASSWORD=... npm run test:qa` from
 `server/`. Unset `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` first to avoid spamming
-Mariam's real Telegram with QA noise. Leaves 2 stray `expenses` rows per run (no
-delete endpoint exists by design) — clean those up manually afterward.
+Mariam's real Telegram with QA noise. Leaves 2 stray `expenses` rows per run —
+delete those from Admin → Dashboard → recent expenses afterward.
 
 ## What's left (all outside the original 9-step roadmap, which is now complete)
 1. **Replace the placeholder admin credentials** (`mariam` / test password) with

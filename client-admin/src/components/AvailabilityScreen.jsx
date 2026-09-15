@@ -65,12 +65,29 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
       isOpen: row.is_open,
       startTime: (row.start_time || '').slice(0, 5),
       endTime: (row.end_time || '').slice(0, 5),
+      hasLunch: Boolean(row.lunch_start),
+      lunchStart: (row.lunch_start || '').slice(0, 5),
+      lunchEnd: (row.lunch_end || '').slice(0, 5),
     }));
     // Caught here as well as server-side so an open day with no end time names
     // itself instead of failing the whole week with a generic message.
     const invalid = days.find((d) => d.isOpen && (!d.startTime || !d.endTime || d.startTime >= d.endTime));
     if (invalid) {
       setError('invalidHoursError');
+      return;
+    }
+    const badLunch = days.find(
+      (d) =>
+        d.isOpen &&
+        d.hasLunch &&
+        (!d.lunchStart ||
+          !d.lunchEnd ||
+          d.lunchStart >= d.lunchEnd ||
+          d.lunchStart < d.startTime ||
+          d.lunchEnd > d.endTime)
+    );
+    if (badLunch) {
+      setError('invalidLunchError');
       return;
     }
 
@@ -154,6 +171,12 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
                 {row.is_open
                   ? `${(row.start_time || '').slice(0, 5)} – ${(row.end_time || '').slice(0, 5)}`
                   : T.closedLabel}
+                {row.is_open && row.lunch_start && (
+                  <span style={{ color: 'var(--muted)' }}>
+                    {' '}
+                    · {T.lunchLabel} {(row.lunch_start || '').slice(0, 5)}–{(row.lunch_end || '').slice(0, 5)}
+                  </span>
+                )}
               </span>
             ) : (
               <>
@@ -193,6 +216,38 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
                         onChange={(e) => updateRow(row.day_of_week, { end_time: e.target.value })}
                       />
                     </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.lunch_start)}
+                        onChange={(e) =>
+                          updateRow(row.day_of_week, {
+                            lunch_start: e.target.checked ? row.lunch_start || '13:00' : null,
+                            lunch_end: e.target.checked ? row.lunch_end || '14:00' : null,
+                          })
+                        }
+                      />
+                      {T.lunchLabel}
+                    </label>
+                    {row.lunch_start && (
+                      <>
+                        <input
+                          className="field-input"
+                          style={{ width: 110 }}
+                          type="time"
+                          value={(row.lunch_start || '').slice(0, 5)}
+                          onChange={(e) => updateRow(row.day_of_week, { lunch_start: e.target.value })}
+                        />
+                        <span style={{ fontSize: 13, color: 'var(--muted)' }}>–</span>
+                        <input
+                          className="field-input"
+                          style={{ width: 110 }}
+                          type="time"
+                          value={(row.lunch_end || '').slice(0, 5)}
+                          onChange={(e) => updateRow(row.day_of_week, { lunch_end: e.target.value })}
+                        />
+                      </>
+                    )}
                   </>
                 )}
               </>

@@ -89,6 +89,9 @@ export const api = {
     const qs = params.toString();
     return request(`/admin/bookings${qs ? `?${qs}` : ''}`);
   },
+  // Mariam's own booking — no cutoff or opening-hours check, see the endpoint.
+  createBooking: (payload) =>
+    request('/admin/bookings', { method: 'POST', body: JSON.stringify(payload) }),
   updateBookingStatus: (id, status) =>
     request(`/admin/bookings/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   // Cancelled bookings only — the endpoint refuses anything else.
@@ -105,6 +108,9 @@ export const api = {
   getExpenseCategories: () => request('/admin/expenses/categories'),
   createExpense: (payload) =>
     request('/admin/expenses', { method: 'POST', body: JSON.stringify(payload) }),
+  updateExpense: (id, payload) =>
+    request(`/admin/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteExpense: (id) => request(`/admin/expenses/${id}`, { method: 'DELETE' }),
 
   getFinancials: ({ from, to } = {}) => {
     const params = new URLSearchParams();

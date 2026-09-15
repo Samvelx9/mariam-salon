@@ -4,10 +4,14 @@
 // for screen-specific text.
 
 export const LANG_ORDER = ['hy', 'ru', 'en'];
+// `code` is what the switcher shows. The flag emoji it used to show falls back
+// to the country's letter pair on systems without an emoji flag font — so
+// English read as "GB" — and a language is better labelled by its own code
+// anyway: English is EN wherever it's spoken.
 export const LANG_META = {
-  hy: { flag: '🇦🇲', name: 'Հայերեն' },
-  ru: { flag: '🇷🇺', name: 'Русский' },
-  en: { flag: '🇬🇧', name: 'English' },
+  hy: { code: 'HY', flag: '🇦🇲', name: 'Հայերեն' },
+  ru: { code: 'RU', flag: '🇷🇺', name: 'Русский' },
+  en: { code: 'EN', flag: '🇬🇧', name: 'English' },
 };
 export const LOCALE_TAG = { hy: 'hy-AM', ru: 'ru-RU', en: 'en-US' };
 export const DEFAULT_LANG = 'ru';
@@ -31,6 +35,15 @@ export const MONTH_SHORT = {
   en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
   ru: ['янв.', 'февр.', 'мар.', 'апр.', 'мая', 'июн.', 'июл.', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.'],
   hy: ['հունվ.', 'փետր.', 'մարտ', 'ապր.', 'մայիս', 'հունիս', 'հուլիս', 'օգս.', 'սեպտ.', 'հոկտ.', 'նոյ.', 'դեկ.'],
+};
+
+// Full month names, for calendar headings. Same reasoning as the short forms:
+// built here rather than pulled from ICU, which has no Armenian data in some
+// browser builds.
+export const MONTH_FULL = {
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  ru: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
+  hy: ['Հունվար', 'Փետրվար', 'Մարտ', 'Ապրիլ', 'Մայիս', 'Հունիս', 'Հուլիս', 'Օգոստոս', 'Սեպտեմբեր', 'Հոկտեմբեր', 'Նոյեմբեր', 'Դեկտեմբեր'],
 };
 
 export function formatPrice(amount, lang) {
