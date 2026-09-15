@@ -83,9 +83,10 @@ prompt text behind each step below.
       has that long free before committing to it.
       Duration and price are always computed server-side from the chosen hours,
       never trusted from the client.
-  - [ ] **Mariam decides whether Electrolysis is hourly.** Left off for now: the
-        price already entered there would change meaning the moment it's ticked
-        (per session → per hour), which is hers to say.
+  - [x] ~~Mariam decides whether Electrolysis is hourly.~~ **It is** — turned on
+        2026-09-15, and the 5 000 ֏ on that zone is the hourly rate (confirmed by
+        Samvel). So a guest booking electrolysis pays 2 500 ֏ for half an hour,
+        10 000 ֏ for two, and so on, picking the length against the schedule.
 
 ## Smaller open items (from the plan's "still to review" list)
 - [ ] Repeat client tracking by phone number — decide if wanted (not currently planned)
