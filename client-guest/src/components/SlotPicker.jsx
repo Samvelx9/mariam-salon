@@ -74,8 +74,13 @@ export default function SlotPicker({ T, lang, slotsData, slotsLoading, selectedD
         <div style={{ padding: '4px 24px 24px' }}>
           <span style={{ fontSize: 14, color: 'var(--muted)' }}>{T.loading}</span>
         </div>
-      ) : anyFree ? (
+      ) : daySlots.length > 0 ? (
         <>
+          {!anyFree && (
+            <div style={{ padding: '0 24px 10px' }}>
+              <span style={{ fontSize: 13, color: 'var(--terracotta)' }}>{T.dayFullyBooked}</span>
+            </div>
+          )}
           <div style={{ padding: '4px 24px 8px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
             {daySlots.map(({ time, reason }) => {
               const selected = time === selectedSlot;
