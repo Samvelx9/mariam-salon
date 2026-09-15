@@ -99,11 +99,9 @@ prompt text behind each step below.
       edit form under each row: zones, date, time, client, status. Changing the
       zones recomputes the length and the total; an edit that would overlap
       another booking is refused by the database, not by the form.
-- [ ] **Old QA suite predates multi-zone bookings.** `server/test/qa.test.js`
-      still posts `serviceId` (accepted — a single-zone booking is a basket of
-      one) and reads `days[].slots` from the per-service route, so it should
-      still pass, but it has not been re-run since the change. Worth a run
-      before the next deploy: see "Dev workflow note" below for how.
+- [x] ~~Old QA suite predates multi-zone bookings.~~ Re-run 2026-09-16 against
+      the real database: **9/9 pass**, including two new tests covering a
+      multi-zone visit and admin booking edits.
 
 ## Smaller open items (from the plan's "still to review" list)
 - [ ] Repeat client tracking by phone number — decide if wanted (not currently planned)
@@ -115,11 +113,17 @@ For local iteration against the real VM database: open a tunnel with
 `server/.env` (gitignored) already points `DATABASE_URL` through that tunnel port.
 Remember to close the tunnel when done.
 
-To re-run the QA suite later (e.g. before a future deploy): with the server running
-as above, `QA_ADMIN_USERNAME=... QA_ADMIN_PASSWORD=... npm run test:qa` from
-`server/`. Unset `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` first to avoid spamming
-Mariam's real Telegram with QA noise. Leaves 2 stray `expenses` rows per run —
-delete those from Admin → Dashboard → recent expenses afterward.
+To re-run the QA suite later (e.g. before a future deploy): with the tunnel open,
+start the server as `TELEGRAM_BOT_TOKEN= TELEGRAM_CHAT_ID= node src/index.js` from
+`server/` — blanking them on the command line really does disable notifications,
+because `dotenv` won't overwrite a variable that already exists, so the run can't
+message Mariam. Then either
+`QA_ADMIN_USERNAME=... QA_ADMIN_PASSWORD=... npm run test:qa`, or keep the two
+values in `server/.qa-env` (gitignored, mode 600) and run
+`set -a; . ./.qa-env; set +a; npm run test:qa` so the password never appears in a
+command. The run deletes its own test expenses and cancels its bookings; clear
+those from Admin → Записи → Отменена afterwards (they all use the reserved
+`+374000xxxxx` phone range).
 
 ## What's left (all outside the original 9-step roadmap, which is now complete)
 1. **Replace the placeholder admin credentials** (`mariam` / test password) with
