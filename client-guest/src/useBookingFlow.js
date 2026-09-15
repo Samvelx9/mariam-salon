@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from './api.js';
 import { DEFAULT_LANG, STRINGS } from './i18n.js';
-import { MIN_BOOKING_MINUTES } from 'salon-shared/booking';
+import { MIN_BOOKING_MINUTES, MAX_BOOKING_MINUTES } from 'salon-shared/booking';
 
 const INITIAL_FLOW_STATE = {
   step: 'landing',
@@ -99,7 +99,18 @@ export function useBookingFlow() {
   const toggleLangMenu = () => setLangMenuOpen((v) => !v);
 
   const selectService = (id) => patch({ selectedServiceId: id });
-  const selectMinutes = (bookedMinutes) => patch({ bookedMinutes });
+  // Stepping by a delta off the previous state, not off a value captured when
+  // the button rendered: two quick taps on + otherwise both read the same
+  // starting length and the second one is lost. Clamping lives here too, so the
+  // buttons can't push the length outside what the server will accept.
+  const stepMinutes = (delta) =>
+    setFlow((prev) => ({
+      ...prev,
+      bookedMinutes: Math.min(
+        MAX_BOOKING_MINUTES,
+        Math.max(MIN_BOOKING_MINUTES, prev.bookedMinutes + delta)
+      ),
+    }));
 
   const selectCategory = (id) =>
     patch({ step: 'services', selectedCategoryId: id, selectedServiceId: null, bookedMinutes: MIN_BOOKING_MINUTES, bannerErrorKey: null });
@@ -293,7 +304,7 @@ export function useBookingFlow() {
     selectCategory,
     backToLanding,
     selectService,
-    selectMinutes,
+    stepMinutes,
     continueToCalendar,
     backToServices,
     selectDay,

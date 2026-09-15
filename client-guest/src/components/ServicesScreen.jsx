@@ -211,7 +211,7 @@ export default function ServicesScreen(f) {
                 <StepButton
                   label="−"
                   disabled={f.bookedMinutes <= MIN_BOOKING_MINUTES}
-                  onClick={() => f.selectMinutes(f.bookedMinutes - STEP_MINUTES)}
+                  onClick={() => f.stepMinutes(-STEP_MINUTES)}
                 />
                 <span style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 600 }}>
                   {formatDuration(f.bookedMinutes, T.hourUnit, T.minUnit)}
@@ -219,7 +219,7 @@ export default function ServicesScreen(f) {
                 <StepButton
                   label="+"
                   disabled={f.bookedMinutes >= MAX_BOOKING_MINUTES}
-                  onClick={() => f.selectMinutes(f.bookedMinutes + STEP_MINUTES)}
+                  onClick={() => f.stepMinutes(STEP_MINUTES)}
                 />
               </div>
             </div>
