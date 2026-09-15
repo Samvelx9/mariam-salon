@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from './api.js';
 import { DEFAULT_LANG, STRINGS } from './i18n.js';
 import { MIN_BOOKING_MINUTES, MAX_BOOKING_MINUTES } from 'salon-shared/booking';
@@ -80,14 +80,34 @@ export function useBookingFlow() {
 
   const patch = (fields) => setFlow((prev) => ({ ...prev, ...fields }));
 
+  // Changing the length on the calendar screen re-asks for slots, and a tap can
+  // land before the previous answer does. Only the newest request may write its
+  // result, or a slower earlier response would overwrite a newer one.
+  const slotRequestRef = useRef(0);
+  // What the calendar's current slot list was built for, so it is refetched
+  // when the length changes and not on every unrelated re-render.
+  const loadedForRef = useRef(null);
+
   // The chosen length changes which start times leave enough room, so it is
   // part of the slot request rather than something applied afterwards.
-  async function loadSlots(serviceId, { excludeBookingId, durationMinutes } = {}) {
-    patch({ slotsLoading: true, slotsData: null, selectedDayIndex: 0, selectedSlot: null });
+  // `keepDay` is for reloads that happen while the guest is already looking at
+  // a particular day — the day stays put, only the times below it change.
+  async function loadSlots(serviceId, { excludeBookingId, durationMinutes, keepDay } = {}) {
+    const requestId = slotRequestRef.current + 1;
+    slotRequestRef.current = requestId;
+
+    patch({
+      slotsLoading: true,
+      slotsData: null,
+      selectedSlot: null,
+      ...(keepDay ? {} : { selectedDayIndex: 0 }),
+    });
     try {
       const data = await api.getSlots(serviceId, { excludeBookingId, durationMinutes });
+      if (slotRequestRef.current !== requestId) return;
       patch({ slotsData: data, slotsLoading: false });
     } catch {
+      if (slotRequestRef.current !== requestId) return;
       patch({ slotsLoading: false, bannerErrorKey: 'genericError' });
     }
   }
@@ -116,11 +136,28 @@ export function useBookingFlow() {
     patch({ step: 'services', selectedCategoryId: id, selectedServiceId: null, bookedMinutes: MIN_BOOKING_MINUTES, bannerErrorKey: null });
   const backToLanding = () => patch({ step: 'landing', selectedServiceId: null });
 
+  // The calendar's slot list is owned by the effect below rather than fetched
+  // here: the guest changes the length *on* that screen, so the list has to
+  // follow the length, and one loader avoids the two racing.
   const continueToCalendar = () => {
+    loadedForRef.current = null;
     patch({ step: 'calendar', bannerErrorKey: null });
-    loadSlots(flow.selectedServiceId, { durationMinutes: flow.bookedMinutes });
   };
   const backToServices = () => patch({ step: 'services' });
+
+  // Reloads whenever the calendar is opened and whenever the length changes
+  // while it's open.
+  useEffect(() => {
+    if (flow.step !== 'calendar' || !flow.selectedServiceId) return;
+    if (loadedForRef.current === flow.bookedMinutes) return;
+    const isFirstLoad = loadedForRef.current === null;
+    loadedForRef.current = flow.bookedMinutes;
+    loadSlots(flow.selectedServiceId, {
+      durationMinutes: flow.bookedMinutes,
+      keepDay: !isFirstLoad,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flow.step, flow.selectedServiceId, flow.bookedMinutes]);
 
   const selectDay = (index) => patch({ selectedDayIndex: index, selectedSlot: null });
   const selectSlot = (time) => patch({ selectedSlot: time });
@@ -170,7 +207,7 @@ export function useBookingFlow() {
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'slot_taken' || err.code === 'too_soon')) {
         patch({ busy: false, step: 'calendar', selectedSlot: null, bannerErrorKey: errorKeyFor(err) });
-        loadSlots(service.id, { durationMinutes: flow.bookedMinutes });
+        loadSlots(service.id, { durationMinutes: flow.bookedMinutes, keepDay: true });
       } else {
         patch({ busy: false, bannerErrorKey: 'genericError' });
       }

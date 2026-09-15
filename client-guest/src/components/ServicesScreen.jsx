@@ -1,35 +1,6 @@
 import LangSwitcher from './LangSwitcher.jsx';
 import { formatPrice } from '../i18n.js';
-import {
-  STEP_MINUTES,
-  MIN_BOOKING_MINUTES,
-  MAX_BOOKING_MINUTES,
-  formatDuration,
-} from 'salon-shared/booking';
 import { ClockIcon, ChevronLeftIcon, CategoryIcon } from './Icons.jsx';
-
-function StepButton({ label, disabled, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label === '+' ? 'plus' : 'minus'}
-      style={{
-        width: 44,
-        height: 44,
-        borderRadius: '50%',
-        fontSize: 20,
-        lineHeight: 1,
-        border: '1px solid var(--line)',
-        background: disabled ? 'var(--bg)' : 'var(--white)',
-        color: disabled ? 'var(--line)' : 'var(--ink)',
-        flexShrink: 0,
-      }}
-    >
-      {label}
-    </button>
-  );
-}
 
 // The price list for one treatment: every zone Mariam offers in that category,
 // with its duration and price. Picking a zone is step 1 of the booking flow.
@@ -49,8 +20,9 @@ export default function ServicesScreen(f) {
   // An hourly treatment is priced per hour, so the guest picks the length here,
   // before the time picker — the number of hours decides which start times are
   // long enough to offer.
+  // The length of an hourly booking is chosen on the next screen, against the
+  // real schedule — see CalendarScreen. Here the rate is all that's shown.
   const isHourly = Boolean(selectedCategory?.is_hourly);
-  const selectedZone = zones.find((z) => z.id === selectedServiceId);
 
   return (
     <>
@@ -197,33 +169,6 @@ export default function ServicesScreen(f) {
 
       {selectedServiceId && (
         <div style={{ padding: '14px 24px 20px', borderTop: '1px solid var(--line)', background: 'var(--surface)' }}>
-          {isHourly && selectedZone && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{T.howLong}</span>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--terracotta)' }}>
-                  {formatPrice(Math.round((selectedZone.price_amd * f.bookedMinutes) / 60), lang)}
-                </span>
-              </div>
-              {/* A stepper rather than a row of twelve pills: half-hour steps up
-                  to six hours is too many choices to lay out at phone width. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <StepButton
-                  label="−"
-                  disabled={f.bookedMinutes <= MIN_BOOKING_MINUTES}
-                  onClick={() => f.stepMinutes(-STEP_MINUTES)}
-                />
-                <span style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 600 }}>
-                  {formatDuration(f.bookedMinutes, T.hourUnit, T.minUnit)}
-                </span>
-                <StepButton
-                  label="+"
-                  disabled={f.bookedMinutes >= MAX_BOOKING_MINUTES}
-                  onClick={() => f.stepMinutes(STEP_MINUTES)}
-                />
-              </div>
-            </div>
-          )}
           <button
             onClick={continueToCalendar}
             style={{ width: '100%', padding: 16, borderRadius: 999, background: 'var(--sage)', color: 'var(--white)', fontSize: 15, fontWeight: 600 }}
