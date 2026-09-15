@@ -116,8 +116,10 @@ export async function insertBookingWithItems(
   { startTime, endTime, customerName, customerPhone, status, totalPrice, items }
 ) {
   const { rows } = await client.query(
+    // The cast is required: without it Postgres types the parameter as text and
+    // refuses to assign it to the booking_status enum column.
     `INSERT INTO bookings (start_time, end_time, customer_name, customer_phone, status, price_at_booking)
-     VALUES ($1, $2, $3, $4, COALESCE($5, 'confirmed'), $6)
+     VALUES ($1, $2, $3, $4, COALESCE($5::booking_status, 'confirmed'), $6)
      RETURNING id`,
     [startTime, endTime, customerName, customerPhone, status ?? null, totalPrice]
   );
