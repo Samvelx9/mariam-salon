@@ -55,7 +55,8 @@ export const STRINGS = {
     selectBooking: 'Select this booking',
     deleteSelectedBtn: 'Delete selected',
     onlyCancelledDeletable: 'Only cancelled bookings can be deleted — confirmed and completed ones stay as history.',
-    confirmDeleteBookings: 'Permanently delete the selected cancelled bookings? This cannot be undone.',
+    confirmDeleteBookings: 'Delete them permanently? This cannot be undone.',
+    confirmDeleteBtn: 'Yes, delete',
     cancelledViewNote: 'Showing every cancelled booking from the last 12 months and the next 12.',
 
     servicesTitle: 'Services',
@@ -191,7 +192,8 @@ export const STRINGS = {
     selectBooking: 'Выбрать эту запись',
     deleteSelectedBtn: 'Удалить выбранные',
     onlyCancelledDeletable: 'Удалять можно только отменённые записи — подтверждённые и завершённые остаются в истории.',
-    confirmDeleteBookings: 'Удалить выбранные отменённые записи навсегда? Это действие необратимо.',
+    confirmDeleteBookings: 'Удалить их навсегда? Это действие необратимо.',
+    confirmDeleteBtn: 'Да, удалить',
     cancelledViewNote: 'Показаны все отменённые записи за последние 12 месяцев и на 12 месяцев вперёд.',
 
     servicesTitle: 'Услуги',
@@ -327,7 +329,8 @@ export const STRINGS = {
     selectBooking: 'Ընտրել այս գրանցումը',
     deleteSelectedBtn: 'Ջնջել ընտրվածները',
     onlyCancelledDeletable: 'Ջնջել կարելի է միայն չեղարկված գրանցումները — հաստատվածներն ու ավարտվածները մնում են պատմության մեջ։',
-    confirmDeleteBookings: 'Ընդմիշտ ջնջե՞լ ընտրված չեղարկված գրանցումները։ Այս գործողությունն անշրջելի է։',
+    confirmDeleteBookings: 'Ընդմիշտ ջնջե՞լ դրանք։ Այս գործողությունն անշրջելի է։',
+    confirmDeleteBtn: 'Այո, ջնջել',
     cancelledViewNote: 'Ցուցադրված են բոլոր չեղարկված գրանցումները վերջին 12 ամսվա և առաջիկա 12 ամսվա համար։',
 
     servicesTitle: 'Ծառայություններ',

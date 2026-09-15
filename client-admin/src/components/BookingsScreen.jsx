@@ -34,6 +34,10 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
   const [deleting, setDeleting] = useState(false);
+  // Deleting several bookings at once confirms in place rather than through a
+  // native confirm() dialog — the count and the warning stay on screen next to
+  // the rows they refer to.
+  const [confirming, setConfirming] = useState(false);
 
   // Filtering to cancelled is the clean-up view: paging through it a week at a
   // time would make clearing a backlog tedious, so it spans a whole year either
@@ -77,6 +81,7 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   const allCancelledSelected = cancelled.length > 0 && cancelled.every((b) => selected.has(b.id));
 
   function toggleOne(id) {
+    setConfirming(false);
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -86,17 +91,18 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   }
 
   function toggleAllCancelled() {
+    setConfirming(false);
     setSelected(allCancelledSelected ? new Set() : new Set(cancelled.map((b) => b.id)));
   }
 
   async function deleteSelected() {
     if (selected.size === 0) return;
-    if (!window.confirm(T.confirmDeleteBookings)) return;
     setDeleting(true);
     setError(null);
     try {
       await api.deleteBookings([...selected]);
       setSelected(new Set());
+      setConfirming(false);
       await load();
     } catch (err) {
       if (!onAuthError(err)) setError('genericError');
@@ -157,14 +163,26 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
             {T.selectAllCancelled}
           </label>
           <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{T.onlyCancelledDeletable}</span>
-          <button
-            className="btn-danger-outline"
-            style={{ marginLeft: 'auto' }}
-            onClick={deleteSelected}
-            disabled={selected.size === 0 || deleting}
-          >
-            {T.deleteSelectedBtn} ({selected.size})
-          </button>
+          {confirming ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, color: 'var(--terracotta)' }}>{T.confirmDeleteBookings}</span>
+              <button className="btn-danger-outline" onClick={deleteSelected} disabled={deleting}>
+                {T.confirmDeleteBtn} ({selected.size})
+              </button>
+              <button className="btn-outline" onClick={() => setConfirming(false)} disabled={deleting}>
+                {T.cancelBtn}
+              </button>
+            </div>
+          ) : (
+            <button
+              className="btn-danger-outline"
+              style={{ marginLeft: 'auto' }}
+              onClick={() => setConfirming(true)}
+              disabled={selected.size === 0}
+            >
+              {T.deleteSelectedBtn} ({selected.size})
+            </button>
+          )}
         </div>
       )}
 
