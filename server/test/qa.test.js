@@ -93,10 +93,13 @@ after(async () => {
   for (const id of createdBookingIds) {
     await api(`/bookings/${id}/cancel`, { method: 'POST' }).catch(() => {});
   }
+  for (const id of createdExpenseIds) {
+    await adminApi(`/admin/expenses/${id}`, { method: 'DELETE' }).catch(() => {});
+  }
   if (originalWeeklyHoursRow) {
     await restoreWeeklyHoursRow(originalWeeklyHoursRow);
   }
-  console.log(`\nQA cleanup: ${createdBookingIds.length} test bookings cancelled, ${createdExpenseIds.length} test expenses left (expenses have no delete endpoint by design — see plan).`);
+  console.log(`\nQA cleanup: ${createdBookingIds.length} test bookings cancelled, ${createdExpenseIds.length} test expenses deleted.`);
 });
 
 // ---------------------------------------------------------------------------
@@ -426,4 +429,140 @@ test('financial aggregation matches hand-calculated totals, and price_at_booking
   } finally {
     await adminApi(`/admin/services/${serviceA.id}`, { method: 'PATCH', body: JSON.stringify({ priceAmd: originalPrice }) });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Multi-zone visits — a booking that covers several zones at once
+// ---------------------------------------------------------------------------
+test('a visit covering several zones runs as long as the sum and costs the sum', async () => {
+  const [zoneA, zoneB] = services;
+  const totalMinutes = zoneA.duration_minutes + zoneB.duration_minutes;
+
+  // Asked for by length, since what decides which starts work is how long the
+  // whole visit runs — not either zone on its own.
+  const { body: slotsData } = await api(`/slots?durationMinutes=${totalMinutes}`);
+  const day = slotsData.days.slice(1).find((d) => d.slots.length > 0);
+  assert.ok(day, 'need an open slot long enough for both zones');
+
+  const created = await api('/bookings', {
+    method: 'POST',
+    body: JSON.stringify({
+      date: day.date,
+      time: day.slots[0],
+      customerName: 'Multi Zone Test',
+      customerPhone: '+37400080001',
+      items: [{ serviceId: zoneA.id }, { serviceId: zoneB.id }],
+    }),
+  });
+  assert.equal(created.status, 201, `multi-zone booking should be created: ${JSON.stringify(created.body)}`);
+  createdBookingIds.push(created.body.id);
+
+  assert.equal(created.body.items.length, 2, 'both zones should be stored');
+  assert.equal(
+    created.body.priceAtBooking,
+    zoneA.price_amd + zoneB.price_amd,
+    'the visit costs the sum of its zones'
+  );
+  const runMinutes = Math.round(
+    (new Date(created.body.endTime) - new Date(created.body.startTime)) / 60000
+  );
+  assert.equal(runMinutes, totalMinutes, 'the visit runs as long as its zones together');
+
+  // Each zone keeps its own snapshot, which is what the financial split reads.
+  const byId = new Map(created.body.items.map((i) => [i.service_id, i]));
+  assert.equal(byId.get(zoneA.id).price_at_booking, zoneA.price_amd);
+  assert.equal(byId.get(zoneB.id).duration_minutes, zoneB.duration_minutes);
+
+  // The same slot must now be refused for anyone else.
+  const clash = await api('/bookings', {
+    method: 'POST',
+    body: JSON.stringify({
+      date: day.date,
+      time: day.slots[0],
+      customerName: 'Multi Zone Clash',
+      customerPhone: '+37400080002',
+      items: [{ serviceId: zoneA.id }],
+    }),
+  });
+  assert.equal(clash.status, 409, 'a second booking over a multi-zone visit must be refused');
+});
+
+// ---------------------------------------------------------------------------
+// Admin editing an existing booking
+// ---------------------------------------------------------------------------
+test('editing a booking recomputes its length and total, and refuses an overlapping move', async () => {
+  const [zoneA, zoneB] = services;
+
+  // The start has to have room for the *lengthened* visit, not just the short
+  // one: booking into the last free half-hour before someone else's appointment
+  // and then adding a zone is a genuine overlap, and the earlier tests in this
+  // run leave exactly that kind of gap behind.
+  const combined = zoneA.duration_minutes + zoneB.duration_minutes;
+  const { body: longSlots } = await api(`/slots?durationMinutes=${combined}`);
+  const openDays = longSlots.days.slice(1).filter((d) => d.slots.length >= 2);
+  assert.ok(openDays.length > 0, 'need a day with room for a lengthened booking and a second one');
+  const day = openDays[0];
+
+  const first = await api('/bookings', {
+    method: 'POST',
+    body: JSON.stringify({
+      date: day.date,
+      time: day.slots[0],
+      customerName: 'Edit Test',
+      customerPhone: '+37400080003',
+      items: [{ serviceId: zoneA.id }],
+    }),
+  });
+  assert.equal(first.status, 201);
+  createdBookingIds.push(first.body.id);
+
+  // Adding a zone must lengthen the visit and raise the total.
+  const widened = await adminApi(`/admin/bookings/${first.body.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ items: [{ serviceId: zoneA.id }, { serviceId: zoneB.id }] }),
+  });
+  assert.equal(widened.status, 200, `edit should succeed: ${JSON.stringify(widened.body)}`);
+  assert.equal(widened.body.price_at_booking, zoneA.price_amd + zoneB.price_amd);
+  const widenedMinutes = Math.round(
+    (new Date(widened.body.end_time) - new Date(widened.body.start_time)) / 60000
+  );
+  assert.equal(widenedMinutes, zoneA.duration_minutes + zoneB.duration_minutes);
+  assert.equal(
+    widened.body.start_time,
+    first.body.startTime,
+    'an edit that only changes zones must not move the booking'
+  );
+
+  // A second booking later the same day, to try to collide with. Taken from a
+  // fresh slot list so it can't land on top of the booking just widened.
+  const laterSlots = (await api(`/slots?durationMinutes=${zoneA.duration_minutes}`)).body.days.find(
+    (d) => d.date === day.date
+  );
+  assert.ok(laterSlots?.slots.length > 0, 'need a second free start on the same day');
+  const freeLater = laterSlots.slots[laterSlots.slots.length - 1];
+  const second = await api('/bookings', {
+    method: 'POST',
+    body: JSON.stringify({
+      date: day.date,
+      time: freeLater,
+      customerName: 'Edit Clash Test',
+      customerPhone: '+37400080004',
+      items: [{ serviceId: zoneA.id }],
+    }),
+  });
+  assert.equal(second.status, 201);
+  createdBookingIds.push(second.body.id);
+
+  const clash = await adminApi(`/admin/bookings/${first.body.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ date: day.date, time: freeLater }),
+  });
+  assert.equal(clash.status, 409, 'moving a booking onto another one must be refused');
+  assert.equal(clash.body.error, 'slot_taken');
+
+  // …and the refused edit must have changed nothing.
+  const after = await adminApi(`/admin/bookings?from=${day.date}&to=${day.date}`);
+  const unchanged = after.body.find((b) => b.id === first.body.id);
+  assert.equal(unchanged.start_time, first.body.startTime, 'a refused move must leave the booking where it was');
+  assert.equal(unchanged.items.length, 2, 'a refused move must leave the zones alone');
 });

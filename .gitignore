@@ -5,3 +5,5 @@ dist/
 .DS_Store
 .claude/
 DEPLOYMENT-SECRETS.md
+# QA credentials, filled in locally and never committed
+.qa-env
