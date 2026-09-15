@@ -32,15 +32,26 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+  const [deleting, setDeleting] = useState(false);
 
-  const from = anchor;
-  const to = addDays(anchor, 6);
+  // Filtering to cancelled is the clean-up view: paging through it a week at a
+  // time would make clearing a backlog tedious, so it spans a whole year either
+  // side and the week controls step aside.
+  const cleanupView = statusFilter === 'cancelled';
+  const from = cleanupView ? addDays(todayStr(), -365) : anchor;
+  const to = cleanupView ? addDays(todayStr(), 365) : addDays(anchor, 6);
 
   async function load() {
     setLoading(true);
     try {
       const data = await api.getBookings({ from, to, status: statusFilter || undefined });
       setBookings(data);
+      // Anything that just left the view can't stay selected.
+      setSelected((prev) => {
+        const visible = new Set(data.map((b) => b.id));
+        return new Set([...prev].filter((id) => visible.has(id)));
+      });
     } catch (err) {
       if (!onAuthError(err)) setError('genericError');
     } finally {
@@ -62,6 +73,38 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
     }
   }
 
+  const cancelled = bookings.filter((b) => b.status === 'cancelled');
+  const allCancelledSelected = cancelled.length > 0 && cancelled.every((b) => selected.has(b.id));
+
+  function toggleOne(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllCancelled() {
+    setSelected(allCancelledSelected ? new Set() : new Set(cancelled.map((b) => b.id)));
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    if (!window.confirm(T.confirmDeleteBookings)) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.deleteBookings([...selected]);
+      setSelected(new Set());
+      await load();
+    } catch (err) {
+      if (!onAuthError(err)) setError('genericError');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const byDate = new Map();
   for (const b of bookings) {
     const { dateObj } = splitYerevanDateTime(b.start_time);
@@ -76,15 +119,19 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <h2 style={{ fontSize: 22, fontWeight: 500 }}>{T.bookingsTitle}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button className="btn-outline" onClick={() => setAnchor(addDays(anchor, -7))}>
-            {T.prevWeek}
-          </button>
-          <button className="btn-outline" onClick={() => setAnchor(todayStr())}>
-            {T.today}
-          </button>
-          <button className="btn-outline" onClick={() => setAnchor(addDays(anchor, 7))}>
-            {T.nextWeek}
-          </button>
+          {!cleanupView && (
+            <>
+              <button className="btn-outline" onClick={() => setAnchor(addDays(anchor, -7))}>
+                {T.prevWeek}
+              </button>
+              <button className="btn-outline" onClick={() => setAnchor(todayStr())}>
+                {T.today}
+              </button>
+              <button className="btn-outline" onClick={() => setAnchor(addDays(anchor, 7))}>
+                {T.nextWeek}
+              </button>
+            </>
+          )}
           <select className="field-input" style={{ width: 160 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">{T.filterAll}</option>
             {Object.entries(STATUS_KEY).map(([value, key]) => (
@@ -97,6 +144,29 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
       </div>
 
       {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--terracotta)' }}>{T[error]}</p>}
+
+      {cleanupView && <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>{T.cancelledViewNote}</p>}
+
+      {cancelled.length > 0 && (
+        <div
+          className="card"
+          style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '10px 14px' }}
+        >
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <input type="checkbox" checked={allCancelledSelected} onChange={toggleAllCancelled} />
+            {T.selectAllCancelled}
+          </label>
+          <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{T.onlyCancelledDeletable}</span>
+          <button
+            className="btn-danger-outline"
+            style={{ marginLeft: 'auto' }}
+            onClick={deleteSelected}
+            disabled={selected.size === 0 || deleting}
+          >
+            {T.deleteSelectedBtn} ({selected.size})
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p style={{ color: 'var(--muted)' }}>{T.loading}</p>
@@ -119,13 +189,25 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
                       className="card"
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {/* Only cancelled bookings can be deleted, so only they
+                            get a checkbox — the rest keep their full width. */}
+                        {b.status === 'cancelled' && (
+                          <input
+                            type="checkbox"
+                            checked={selected.has(b.id)}
+                            onChange={() => toggleOne(b.id)}
+                            aria-label={T.selectBooking}
+                          />
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <span style={{ fontFamily: "'Newsreader',serif", fontSize: 15 }}>
                           {time} · {b[`name_${lang}`]}
                         </span>
                         <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
                           {b.customer_name} · {b.customer_phone} · {formatPrice(b.price_at_booking, lang)}
                         </span>
+                        </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR[b.status] }}>

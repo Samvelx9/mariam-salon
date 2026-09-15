@@ -91,6 +91,8 @@ export const api = {
   },
   updateBookingStatus: (id, status) =>
     request(`/admin/bookings/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  // Cancelled bookings only — the endpoint refuses anything else.
+  deleteBookings: (ids) => request('/admin/bookings', { method: 'DELETE', body: JSON.stringify({ ids }) }),
 
   getExpenses: ({ from, to, category } = {}) => {
     const params = new URLSearchParams();

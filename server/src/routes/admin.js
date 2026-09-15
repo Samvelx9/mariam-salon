@@ -683,6 +683,41 @@ adminRouter.get(
   })
 );
 
+// Bulk delete, for clearing out cancelled bookings without picking them off one
+// at a time. Only cancelled rows can go: a confirmed booking is a commitment and
+// a completed one is a line in the financial history, so both are refused here —
+// mark a booking cancelled first if it really needs deleting.
+adminRouter.delete(
+  '/bookings',
+  asyncHandler(async (req, res) => {
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'missing_ids' });
+    }
+    if (ids.length > 500) {
+      return res.status(400).json({ error: 'too_many_ids' });
+    }
+    const numericIds = ids.map(Number);
+    if (numericIds.some((id) => !Number.isInteger(id))) {
+      return res.status(400).json({ error: 'invalid_booking_id' });
+    }
+
+    const { rows } = await pool.query(
+      `DELETE FROM bookings WHERE id = ANY($1::int[]) AND status = 'cancelled'
+       RETURNING id`,
+      [numericIds]
+    );
+
+    // Anything the caller asked for that isn't in the result was either already
+    // gone or isn't cancelled — reported back rather than silently ignored.
+    const deleted = new Set(rows.map((r) => r.id));
+    res.json({
+      deleted: deleted.size,
+      skipped: numericIds.filter((id) => !deleted.has(id)),
+    });
+  })
+);
+
 adminRouter.patch(
   '/bookings/:id/status',
   asyncHandler(async (req, res) => {
