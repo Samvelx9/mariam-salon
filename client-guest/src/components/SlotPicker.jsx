@@ -76,9 +76,14 @@ export default function SlotPicker({ T, lang, slotsData, slotsLoading, selectedD
         </div>
       ) : daySlots.length > 0 ? (
         <>
+          {/* "Fully booked" only when it really is somebody else's booking that
+              fills the day — on today the remaining times are usually just past
+              the cutoff, which is a different thing to say. */}
           {!anyFree && (
             <div style={{ padding: '0 24px 10px' }}>
-              <span style={{ fontSize: 13, color: 'var(--terracotta)' }}>{T.dayFullyBooked}</span>
+              <span style={{ fontSize: 13, color: anyBooked ? 'var(--terracotta)' : 'var(--muted)' }}>
+                {anyBooked ? T.dayFullyBooked : T.noOpenings}
+              </span>
             </div>
           )}
           <div style={{ padding: '4px 24px 8px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
