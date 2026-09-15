@@ -54,10 +54,16 @@ export async function isSlotWithinAvailability(date, startUtc, endUtc) {
   return true;
 }
 
+// `is_hourly` comes from the zone's treatment: it decides whether the row's
+// price_amd is a flat price or an hourly rate, so every caller that prices or
+// times a booking needs it alongside the service itself.
 export async function getActiveService(serviceId) {
   const { rows } = await pool.query(
-    `SELECT id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd
-     FROM services WHERE id = $1 AND is_active = true`,
+    `SELECT s.id, s.slug, s.name_en, s.name_ru, s.name_hy, s.duration_minutes,
+            s.price_amd, c.is_hourly
+     FROM services s
+     JOIN service_categories c ON c.id = s.category_id
+     WHERE s.id = $1 AND s.is_active = true`,
     [serviceId]
   );
   return rows[0] || null;
@@ -67,7 +73,8 @@ export async function getActiveService(serviceId) {
 // availability (weekly hours minus date-specific blocks) minus existing
 // non-cancelled bookings minus the cutoff window. Always queried fresh
 // (no caching) to keep the double-booking race window as small as possible.
-export async function getAvailableSlots(service, { excludeBookingId } = {}) {
+export async function getAvailableSlots(service, { excludeBookingId, durationMinutes } = {}) {
+  const slotLength = durationMinutes || service.duration_minutes;
   const startDate = todayDateStr();
   const endDate = addDaysToDateStr(startDate, DAYS_AHEAD - 1);
   const rangeStartUtc = localToUtc(startDate, '00:00');
@@ -124,10 +131,10 @@ export async function getAvailableSlots(service, { excludeBookingId } = {}) {
 
         for (
           let slotStart = dayStart;
-          addMinutes(slotStart, service.duration_minutes) <= dayEnd;
+          addMinutes(slotStart, slotLength) <= dayEnd;
           slotStart = addMinutes(slotStart, SLOT_INTERVAL_MINUTES)
         ) {
-          const slotEnd = addMinutes(slotStart, service.duration_minutes);
+          const slotEnd = addMinutes(slotStart, slotLength);
 
           if (slotStart < cutoffInstant) continue;
           if (partialBlocks.some(([bs, be]) => overlaps(slotStart, slotEnd, bs, be))) continue;

@@ -385,3 +385,20 @@ clean-up work earlier the same day.
   labelled by language code. The flag emoji it used to show falls back to the
   country's letter pair without an emoji flag font, so English appeared as "GB" —
   and a language is better labelled by its own code anyway.
+
+- **Hourly treatments.** Some treatments are sold by time, not by area —
+  electrolysis is worked hair by hair — so a treatment carries an `is_hourly`
+  flag that changes how its whole price list reads: each zone's `price_amd`
+  becomes an hourly rate, and the guest chooses 1-6 whole hours. The chosen
+  length is part of the slot request, since it decides which start times leave
+  enough room, and both the duration and the price are recomputed on the server
+  from the hours rather than taken from the client. Rescheduling now keeps the
+  length that was actually booked (`end_time - start_time`) instead of the
+  zone's nominal duration — for an hourly booking those differ, and the old code
+  would have quietly shortened a three-hour session to one. The Telegram message
+  gains a duration line for hourly bookings, since otherwise a one-hour and a
+  three-hour session look identical. The booking rules live in
+  `server/src/lib/booking.js` and `shared/booking.js` — deliberately two copies,
+  because the backend image is built with `server/` as its entire Docker context
+  and cannot import the shared package at runtime (the same reason
+  `src/lib/time.js` exists).

@@ -4,12 +4,19 @@ function formatMessage(event) {
   const { booking } = event;
   const serviceName = event.service?.name_ru ?? booking.name_ru;
   const when = formatYerevanDateTime(new Date(booking.start_time));
+  // An hourly treatment is booked for a length the guest chose, so the message
+  // has to say how long — otherwise Mariam can't tell a one-hour electrolysis
+  // session from a three-hour one.
+  const duration = event.service?.is_hourly && event.durationMinutes
+    ? `Длительность: ${event.durationMinutes / 60} ч\n`
+    : '';
 
   if (event.type === 'booking_created') {
     return (
       `🆕 Новая запись\n` +
       `Услуга: ${serviceName}\n` +
       `Дата: ${when}\n` +
+      duration +
       `Клиент: ${booking.customer_name}\n` +
       `Телефон: ${booking.customer_phone}`
     );

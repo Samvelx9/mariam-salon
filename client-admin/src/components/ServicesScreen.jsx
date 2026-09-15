@@ -305,7 +305,12 @@ function ServiceForm({ T, lang, form, setForm, categories, saving, onSave, onCan
           value={form.durationMinutes}
           onChange={(v) => setForm({ ...form, durationMinutes: v })}
         />
-        <Field label={T.priceLabel} type="number" value={form.priceAmd} onChange={(v) => setForm({ ...form, priceAmd: v })} />
+        <Field
+          label={categories.find((c) => String(c.id) === String(form.categoryId))?.is_hourly ? T.hourlyRateLabel : T.priceLabel}
+          type="number"
+          value={form.priceAmd}
+          onChange={(v) => setForm({ ...form, priceAmd: v })}
+        />
         <Field
           label={T.sortOrderLabel}
           type="number"
@@ -341,7 +346,9 @@ function ServiceRow({ T, lang, service, isEditing, onEdit, onToggleActive, onRem
           )}
         </span>
         <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-          {service.duration_minutes} {T.minUnit} · {formatPrice(service.price_amd, lang)}
+          {service.is_hourly
+            ? `${formatPrice(service.price_amd, lang)} ${T.perHourSuffix}`
+            : `${service.duration_minutes} ${T.minUnit} · ${formatPrice(service.price_amd, lang)}`}
         </span>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

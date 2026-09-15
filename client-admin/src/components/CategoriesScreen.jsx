@@ -10,6 +10,7 @@ const EMPTY_FORM = {
   descriptionRu: '',
   descriptionHy: '',
   sortOrder: '',
+  isHourly: false,
 };
 
 // The treatments a guest picks between on the landing page (waxing, sugaring,
@@ -56,6 +57,7 @@ export default function CategoriesScreen({ T, lang, onAuthError }) {
       descriptionRu: category.description_ru,
       descriptionHy: category.description_hy,
       sortOrder: String(category.sort_order),
+      isHourly: category.is_hourly,
     });
     setEditingId(category.id);
     setError(null);
@@ -70,6 +72,7 @@ export default function CategoriesScreen({ T, lang, onAuthError }) {
       descriptionRu: form.descriptionRu.trim(),
       descriptionHy: form.descriptionHy.trim(),
       sortOrder: Number(form.sortOrder) || 0,
+      isHourly: form.isHourly,
     };
     if (!payload.nameEn || !payload.nameRu || !payload.nameHy) {
       setError('genericError');
@@ -173,6 +176,9 @@ export default function CategoriesScreen({ T, lang, onAuthError }) {
                 )}
                 <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
                   {zoneCount(category.id)} {pluralize(zoneCount(category.id), lang, 'zones')}
+                  {category.is_hourly && (
+                    <span style={{ color: 'var(--sage)', fontWeight: 600 }}> · {T.hourlyTag}</span>
+                  )}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -230,13 +236,26 @@ function CategoryForm({ T, form, setForm, saving, onSave, onCancel, nested }) {
         keys={['descriptionHy', 'descriptionRu', 'descriptionEn']}
         multiline
       />
-      <div style={{ maxWidth: 160 }}>
-        <Field
-          label={T.sortOrderLabel}
-          type="number"
-          value={form.sortOrder}
-          onChange={(v) => setForm({ ...form, sortOrder: v })}
-        />
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ width: 160 }}>
+          <Field
+            label={T.sortOrderLabel}
+            type="number"
+            value={form.sortOrder}
+            onChange={(v) => setForm({ ...form, sortOrder: v })}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 6 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+            <input
+              type="checkbox"
+              checked={form.isHourly}
+              onChange={(e) => setForm({ ...form, isHourly: e.target.checked })}
+            />
+            {T.hourlyLabel}
+          </label>
+          <span style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 420 }}>{T.hourlyHint}</span>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
         <button className="btn-primary" onClick={onSave} disabled={saving}>

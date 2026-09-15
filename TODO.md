@@ -74,6 +74,16 @@ prompt text behind each step below.
       (migration `1789390653090_weekly-lunch-break`), edited with the rest of the
       week, and excluded from the guest's bookable slots.
 
+- [x] **Treatments can be priced by the hour** (`service_categories.is_hourly`,
+      migration `1789390653100_hourly-treatments`). Ticking "Почасовая оплата" on
+      a treatment turns every zone's price into an hourly rate; the guest then
+      picks 1–6 hours, and the slot list only offers starts with that much room.
+      Duration and price are always computed server-side from the chosen hours,
+      never trusted from the client.
+  - [ ] **Mariam decides whether Electrolysis is hourly.** Left off for now: the
+        price already entered there would change meaning the moment it's ticked
+        (per session → per hour), which is hers to say.
+
 ## Smaller open items (from the plan's "still to review" list)
 - [ ] Repeat client tracking by phone number — decide if wanted (not currently planned)
 - [ ] Full API endpoint list — gets nailed down as part of Steps 3 & 4

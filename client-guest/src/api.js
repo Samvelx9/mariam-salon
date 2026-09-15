@@ -45,9 +45,14 @@ export const api = {
 
   getServices: () => request('/services'),
 
-  getSlots: (serviceId, { excludeBookingId } = {}) => {
-    const query = excludeBookingId ? `?excludeBookingId=${excludeBookingId}` : '';
-    return request(`/services/${serviceId}/slots${query}`);
+  // `hours` only means anything for a treatment priced by the hour: it decides
+  // how much room a start time needs.
+  getSlots: (serviceId, { excludeBookingId, hours } = {}) => {
+    const params = new URLSearchParams();
+    if (excludeBookingId) params.set('excludeBookingId', excludeBookingId);
+    if (hours) params.set('hours', hours);
+    const query = params.toString();
+    return request(`/services/${serviceId}/slots${query ? `?${query}` : ''}`);
   },
 
   createBooking: (payload) =>

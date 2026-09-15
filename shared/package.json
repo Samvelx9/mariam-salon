@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./i18n": "./i18n.js",
-    "./time": "./time.js"
+    "./time": "./time.js",
+    "./booking": "./booking.js"
   }
 }

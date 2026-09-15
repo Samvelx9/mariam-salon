@@ -7,6 +7,7 @@ import {
   CUTOFF_MINUTES,
 } from '../services/availability.js';
 import { localToUtc, addMinutes } from '../lib/time.js';
+import { bookingShape, isValidHours } from '../lib/booking.js';
 import { notifyTelegram } from '../services/telegram.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
@@ -62,14 +63,17 @@ guestRouter.get('/profile/photo', asyncHandler(async (_req, res) => {
 guestRouter.get('/categories', asyncHandler(async (_req, res) => {
   const { rows: categories } = await pool.query(
     `SELECT id, slug, name_en, name_ru, name_hy,
-            description_en, description_ru, description_hy
+            description_en, description_ru, description_hy, is_hourly
      FROM service_categories WHERE is_active = true
      ORDER BY sort_order, id`
   );
 
   const { rows: services } = await pool.query(
-    `SELECT id, category_id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd
-     FROM services WHERE is_active = true ORDER BY sort_order, id`
+    `SELECT s.id, s.category_id, s.slug, s.name_en, s.name_ru, s.name_hy,
+            s.duration_minutes, s.price_amd, c.is_hourly
+     FROM services s
+     JOIN service_categories c ON c.id = s.category_id
+     WHERE s.is_active = true ORDER BY s.sort_order, s.id`
   );
 
   const byCategory = new Map(categories.map((c) => [c.id, []]));
@@ -92,8 +96,11 @@ guestRouter.get('/hours', asyncHandler(async (_req, res) => {
 // GET /api/services — active services for the guest picker
 guestRouter.get('/services', asyncHandler(async (_req, res) => {
   const { rows } = await pool.query(
-    `SELECT id, category_id, slug, name_en, name_ru, name_hy, duration_minutes, price_amd
-     FROM services WHERE is_active = true ORDER BY sort_order, id`
+    `SELECT s.id, s.category_id, s.slug, s.name_en, s.name_ru, s.name_hy,
+            s.duration_minutes, s.price_amd, c.is_hourly
+     FROM services s
+     JOIN service_categories c ON c.id = s.category_id
+     WHERE s.is_active = true ORDER BY s.sort_order, s.id`
   );
   res.json(rows);
 }));
@@ -116,8 +123,19 @@ guestRouter.get('/services/:id/slots', asyncHandler(async (req, res) => {
     ? Number(req.query.excludeBookingId)
     : undefined;
 
-  const days = await getAvailableSlots(service, { excludeBookingId });
-  res.json({ serviceId, days });
+  // For an hourly zone the guest's chosen length decides which starts leave
+  // enough room; for a fixed one the query is ignored.
+  let durationMinutes;
+  if (service.is_hourly) {
+    const hours = req.query.hours === undefined ? 1 : Number(req.query.hours);
+    if (!isValidHours(hours)) {
+      return res.status(400).json({ error: 'invalid_hours' });
+    }
+    durationMinutes = hours * 60;
+  }
+
+  const days = await getAvailableSlots(service, { excludeBookingId, durationMinutes });
+  res.json({ serviceId, days, durationMinutes: durationMinutes ?? service.duration_minutes });
 }));
 
 // POST /api/bookings — create a booking for an open slot
@@ -140,8 +158,14 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'service_not_found' });
   }
 
+  const hours = req.body?.hours === undefined ? 1 : Number(req.body.hours);
+  if (service.is_hourly && !isValidHours(hours)) {
+    return res.status(400).json({ error: 'invalid_hours' });
+  }
+  const { durationMinutes, price } = bookingShape(service, hours);
+
   const startTime = localToUtc(date, time);
-  const endTime = addMinutes(startTime, service.duration_minutes);
+  const endTime = addMinutes(startTime, durationMinutes);
 
   if (startTime < addMinutes(new Date(), CUTOFF_MINUTES)) {
     return res.status(400).json({ error: 'too_soon', cutoffMinutes: CUTOFF_MINUTES });
@@ -156,7 +180,7 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
       `INSERT INTO bookings (service_id, start_time, end_time, customer_name, customer_phone, price_at_booking)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, start_time, end_time, status`,
-      [serviceId, startTime, endTime, customerName, customerPhone, service.price_amd]
+      [serviceId, startTime, endTime, customerName, customerPhone, price]
     );
 
     const booking = rows[0];
@@ -164,6 +188,7 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
       type: 'booking_created',
       booking: { ...booking, customer_name: customerName, customer_phone: customerPhone },
       service,
+      durationMinutes,
     });
 
     res.status(201).json({
@@ -174,7 +199,7 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
       status: booking.status,
       customerName,
       customerPhone,
-      priceAtBooking: service.price_amd,
+      priceAtBooking: price,
     });
   } catch (err) {
     if (err.code === EXCLUSION_VIOLATION) {
@@ -246,7 +271,10 @@ guestRouter.post('/bookings/:id/reschedule', asyncHandler(async (req, res) => {
   }
 
   const startTime = localToUtc(date, time);
-  const endTime = addMinutes(startTime, booking.duration_minutes);
+  const bookedMinutes = Math.round(
+    (new Date(booking.end_time) - new Date(booking.start_time)) / 60000
+  );
+  const endTime = addMinutes(startTime, bookedMinutes);
 
   if (startTime < addMinutes(new Date(), CUTOFF_MINUTES)) {
     return res.status(400).json({ error: 'too_soon', cutoffMinutes: CUTOFF_MINUTES });

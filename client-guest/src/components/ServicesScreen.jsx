@@ -1,5 +1,6 @@
 import LangSwitcher from './LangSwitcher.jsx';
 import { formatPrice } from '../i18n.js';
+import { HOUR_CHOICES } from 'salon-shared/booking';
 import { ClockIcon, ChevronLeftIcon, CategoryIcon } from './Icons.jsx';
 
 // The price list for one treatment: every zone Mariam offers in that category,
@@ -17,6 +18,11 @@ export default function ServicesScreen(f) {
   } = f;
 
   const zones = selectedCategory?.services ?? [];
+  // An hourly treatment is priced per hour, so the guest picks the length here,
+  // before the time picker — the number of hours decides which start times are
+  // long enough to offer.
+  const isHourly = Boolean(selectedCategory?.is_hourly);
+  const selectedZone = zones.find((z) => z.id === selectedServiceId);
 
   return (
     <>
@@ -127,11 +133,14 @@ export default function ServicesScreen(f) {
                   <span style={{ fontFamily: "'Newsreader',serif", fontSize: 16, color: 'var(--ink)' }}>{s[`name_${lang}`]}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--muted)' }}>
                     <ClockIcon size={13} color="var(--muted)" strokeWidth={2} />
-                    {s.duration_minutes} {T.minUnit}
+                    {isHourly ? T.byTheHour : `${s.duration_minutes} ${T.minUnit}`}
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--terracotta)' }}>{formatPrice(s.price_amd, lang)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--terracotta)' }}>
+                    {formatPrice(s.price_amd, lang)}
+                    {isHourly && <span style={{ fontSize: 11, fontWeight: 500 }}> {T.perHourSuffix}</span>}
+                  </span>
                   <div
                     style={{
                       width: 20,
@@ -160,6 +169,39 @@ export default function ServicesScreen(f) {
 
       {selectedServiceId && (
         <div style={{ padding: '14px 24px 20px', borderTop: '1px solid var(--line)', background: 'var(--surface)' }}>
+          {isHourly && selectedZone && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{T.howLong}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--terracotta)' }}>
+                  {formatPrice(selectedZone.price_amd * f.bookedHours, lang)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {HOUR_CHOICES.map((h) => {
+                  const active = h === f.bookedHours;
+                  return (
+                    <button
+                      key={h}
+                      onClick={() => f.selectHours(h)}
+                      style={{
+                        minWidth: 48,
+                        padding: '9px 12px',
+                        borderRadius: 999,
+                        fontSize: 13,
+                        fontWeight: active ? 700 : 500,
+                        border: active ? '1.5px solid var(--sage)' : '1px solid var(--line)',
+                        background: active ? 'var(--sage-light)' : 'var(--white)',
+                        color: 'var(--ink)',
+                      }}
+                    >
+                      {h} {T.hourUnit}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <button
             onClick={continueToCalendar}
             style={{ width: '100%', padding: 16, borderRadius: 999, background: 'var(--sage)', color: 'var(--white)', fontSize: 15, fontWeight: 600 }}

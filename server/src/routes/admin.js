@@ -6,6 +6,7 @@ import { asyncHandler } from '../lib/asyncHandler.js';
 import { requireAdminAuth } from '../middleware/auth.js';
 import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
 import { todayDateStr, addDaysToDateStr, localToUtc } from '../lib/time.js';
+import { bookingShape, isValidHours } from '../lib/booking.js';
 import {
   PROFILE_TEXT_COLUMNS,
   getProfileRow,
@@ -147,10 +148,14 @@ adminRouter.delete(
 // ---------------------------------------------------------------------------
 
 const CATEGORY_COLUMNS = `id, slug, name_en, name_ru, name_hy,
-       description_en, description_ru, description_hy, sort_order, is_active`;
+       description_en, description_ru, description_hy, sort_order, is_active, is_hourly`;
 
 const SERVICE_COLUMNS = `id, category_id, slug, name_en, name_ru, name_hy,
        duration_minutes, price_amd, sort_order, is_active`;
+
+// The same list plus the treatment's pricing mode, for the read-only listing.
+const SERVICE_COLUMNS_WITH_MODE = `s.id, s.category_id, s.slug, s.name_en, s.name_ru, s.name_hy,
+       s.duration_minutes, s.price_amd, s.sort_order, s.is_active, c.is_hourly`;
 
 adminRouter.get(
   '/categories',
@@ -178,8 +183,9 @@ adminRouter.post(
     try {
       const { rows } = await pool.query(
         `INSERT INTO service_categories
-           (slug, name_en, name_ru, name_hy, description_en, description_ru, description_hy, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           (slug, name_en, name_ru, name_hy, description_en, description_ru, description_hy,
+            sort_order, is_hourly)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING ${CATEGORY_COLUMNS}`,
         [
           slug,
@@ -190,6 +196,7 @@ adminRouter.post(
           cleanString(req.body?.descriptionRu, 500),
           cleanString(req.body?.descriptionHy, 500),
           Number.isInteger(sortOrder) ? sortOrder : 0,
+          Boolean(req.body?.isHourly),
         ]
       );
       res.status(201).json(rows[0]);
@@ -247,6 +254,11 @@ adminRouter.patch(
       fields.push(`is_active = $${values.length}`);
     }
 
+    if (req.body?.isHourly !== undefined) {
+      values.push(Boolean(req.body.isHourly));
+      fields.push(`is_hourly = $${values.length}`);
+    }
+
     if (fields.length === 0) {
       return res.status(400).json({ error: 'no_fields_to_update' });
     }
@@ -299,7 +311,10 @@ adminRouter.get(
   '/services',
   asyncHandler(async (_req, res) => {
     const { rows } = await pool.query(
-      `SELECT ${SERVICE_COLUMNS} FROM services ORDER BY sort_order, id`
+      `SELECT ${SERVICE_COLUMNS_WITH_MODE}
+       FROM services s
+       JOIN service_categories c ON c.id = s.category_id
+       ORDER BY s.sort_order, s.id`
     );
     res.json(rows);
   })
@@ -729,7 +744,10 @@ adminRouter.post(
     }
 
     const { rows: serviceRows } = await pool.query(
-      `SELECT id, duration_minutes, price_amd FROM services WHERE id = $1`,
+      `SELECT s.id, s.duration_minutes, s.price_amd, c.is_hourly
+       FROM services s
+       JOIN service_categories c ON c.id = s.category_id
+       WHERE s.id = $1`,
       [serviceId]
     );
     const service = serviceRows[0];
@@ -737,8 +755,14 @@ adminRouter.post(
       return res.status(404).json({ error: 'service_not_found' });
     }
 
+    const hours = req.body?.hours === undefined ? 1 : Number(req.body.hours);
+    if (service.is_hourly && !isValidHours(hours)) {
+      return res.status(400).json({ error: 'invalid_hours' });
+    }
+    const { durationMinutes, price } = bookingShape(service, hours);
+
     const startTime = localToUtc(date, time);
-    const endTime = new Date(startTime.getTime() + service.duration_minutes * 60_000);
+    const endTime = new Date(startTime.getTime() + durationMinutes * 60_000);
 
     try {
       const { rows } = await pool.query(
@@ -747,7 +771,7 @@ adminRouter.post(
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id, service_id, start_time, end_time, customer_name, customer_phone,
                    status, price_at_booking`,
-        [serviceId, startTime, endTime, customerName, customerPhone, status, service.price_amd]
+        [serviceId, startTime, endTime, customerName, customerPhone, status, price]
       );
       res.status(201).json(rows[0]);
     } catch (err) {

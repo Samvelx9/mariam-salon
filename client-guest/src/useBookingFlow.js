@@ -6,6 +6,10 @@ const INITIAL_FLOW_STATE = {
   step: 'landing',
   selectedCategoryId: null,
   selectedServiceId: null,
+  // How many hours the guest wants, for treatments priced by the hour. Ignored
+  // by every fixed-price zone. Named apart from the salon's opening `hours`,
+  // which this hook also returns.
+  bookedHours: 1,
   slotsData: null,
   slotsLoading: false,
   selectedDayIndex: 0,
@@ -74,10 +78,12 @@ export function useBookingFlow() {
 
   const patch = (fields) => setFlow((prev) => ({ ...prev, ...fields }));
 
-  async function loadSlots(serviceId, { excludeBookingId } = {}) {
+  // The number of hours changes which start times leave enough room, so it is
+  // part of the slot request rather than something applied afterwards.
+  async function loadSlots(serviceId, { excludeBookingId, hours } = {}) {
     patch({ slotsLoading: true, slotsData: null, selectedDayIndex: 0, selectedSlot: null });
     try {
-      const data = await api.getSlots(serviceId, { excludeBookingId });
+      const data = await api.getSlots(serviceId, { excludeBookingId, hours });
       patch({ slotsData: data, slotsLoading: false });
     } catch {
       patch({ slotsLoading: false, bannerErrorKey: 'genericError' });
@@ -91,14 +97,15 @@ export function useBookingFlow() {
   const toggleLangMenu = () => setLangMenuOpen((v) => !v);
 
   const selectService = (id) => patch({ selectedServiceId: id });
+  const selectHours = (bookedHours) => patch({ bookedHours });
 
   const selectCategory = (id) =>
-    patch({ step: 'services', selectedCategoryId: id, selectedServiceId: null, bannerErrorKey: null });
+    patch({ step: 'services', selectedCategoryId: id, selectedServiceId: null, bookedHours: 1, bannerErrorKey: null });
   const backToLanding = () => patch({ step: 'landing', selectedServiceId: null });
 
   const continueToCalendar = () => {
     patch({ step: 'calendar', bannerErrorKey: null });
-    loadSlots(flow.selectedServiceId);
+    loadSlots(flow.selectedServiceId, { hours: flow.bookedHours });
   };
   const backToServices = () => patch({ step: 'services' });
 
@@ -128,6 +135,7 @@ export function useBookingFlow() {
         time: flow.selectedSlot,
         customerName: flow.name,
         customerPhone: flow.phone,
+        hours: flow.bookedHours,
       });
       patch({
         busy: false,
@@ -149,7 +157,7 @@ export function useBookingFlow() {
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'slot_taken' || err.code === 'too_soon')) {
         patch({ busy: false, step: 'calendar', selectedSlot: null, bannerErrorKey: errorKeyFor(err) });
-        loadSlots(service.id);
+        loadSlots(service.id, { hours: flow.bookedHours });
       } else {
         patch({ busy: false, bannerErrorKey: 'genericError' });
       }
@@ -203,7 +211,12 @@ export function useBookingFlow() {
 
   function goReschedule(origin) {
     patch({ step: 'reschedulePicker', manageOrigin: origin, bannerErrorKey: null });
-    loadSlots(flow.activeBooking.serviceId, { excludeBookingId: flow.activeBooking.id });
+    const booked = flow.activeBooking;
+    const bookedHours = Math.max(
+      1,
+      Math.round((new Date(booked.endTime) - new Date(booked.startTime)) / 3600000)
+    );
+    loadSlots(booked.serviceId, { excludeBookingId: booked.id, hours: bookedHours });
   }
   const goRescheduleFromConfirmation = () => goReschedule('confirmation');
   const goRescheduleFromManage = () => goReschedule('manage');
@@ -279,6 +292,7 @@ export function useBookingFlow() {
     selectCategory,
     backToLanding,
     selectService,
+    selectHours,
     continueToCalendar,
     backToServices,
     selectDay,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api.js';
 import { formatPrice, formatDate, pluralize, WEEKDAY_SHORT, MONTH_FULL } from '../i18n.js';
 import { splitYerevanDateTime } from 'salon-shared/time';
+import { HOUR_CHOICES } from 'salon-shared/booking';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -53,6 +54,7 @@ const EMPTY_BOOKING_FORM = {
   customerName: '',
   customerPhone: '',
   status: 'confirmed',
+  hours: '1',
 };
 
 export default function BookingsScreen({ T, lang, onAuthError }) {
@@ -193,6 +195,7 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
       customerName: bookingForm.customerName.trim(),
       customerPhone: bookingForm.customerPhone.trim(),
       status: bookingForm.status,
+      hours: Number(bookingForm.hours) || 1,
     };
     if (!payload.serviceId || !payload.date || !payload.time || !payload.customerName || !payload.customerPhone) {
       setError('missingBookingFields');
@@ -580,6 +583,7 @@ function BookingRow({ T, lang, booking, showDate, selected, onToggle, onChangeSt
 }
 
 function NewBookingForm({ T, lang, form, setForm, services, categories, saving, onSave, onCancel }) {
+  const selectedService = services.find((s) => String(s.id) === String(form.serviceId));
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12, borderLeft: '3px solid var(--sage)' }}>
       <h3 style={{ fontSize: 16, fontWeight: 600 }}>{T.newBookingTitle}</h3>
@@ -599,7 +603,10 @@ function NewBookingForm({ T, lang, form, setForm, services, categories, saving, 
                 <optgroup key={c.id} label={c[`name_${lang}`]}>
                   {rows.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s[`name_${lang}`]} · {s.duration_minutes} {T.minUnit} · {formatPrice(s.price_amd, lang)}
+                      {s[`name_${lang}`]} ·{' '}
+                      {s.is_hourly
+                        ? `${formatPrice(s.price_amd, lang)} ${T.perHourSuffix}`
+                        : `${s.duration_minutes} ${T.minUnit} · ${formatPrice(s.price_amd, lang)}`}
                     </option>
                   ))}
                 </optgroup>
@@ -607,6 +614,18 @@ function NewBookingForm({ T, lang, form, setForm, services, categories, saving, 
             })}
           </select>
         </div>
+        {selectedService?.is_hourly && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.hoursLabel}</label>
+            <select className="field-input" value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value })}>
+              {HOUR_CHOICES.map((h) => (
+                <option key={h} value={h}>
+                  {h} {T.hourUnit} · {formatPrice(selectedService.price_amd * h, lang)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <Field label={T.dateLabel} type="date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
         <Field label={T.timeLabel} type="time" value={form.time} onChange={(v) => setForm({ ...form, time: v })} />
         <Field
