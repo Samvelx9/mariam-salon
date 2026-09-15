@@ -1,5 +1,36 @@
 export * from 'salon-shared/i18n';
 
+// Counted nouns: Russian picks between three forms by the last digits, Armenian
+// keeps the singular after a numeral, English just adds an -s. Without this a
+// count reads as "12 зон(ы)" or "1 записей", which is the kind of thing that
+// makes a dashboard feel machine-translated.
+const PLURAL_FORMS = {
+  bookings: {
+    en: ['booking', 'bookings'],
+    ru: ['запись', 'записи', 'записей'],
+    hy: ['գրանցում'],
+  },
+  zones: {
+    en: ['zone', 'zones'],
+    ru: ['зона', 'зоны', 'зон'],
+    hy: ['գոտի'],
+  },
+};
+
+export function pluralize(count, lang, noun) {
+  const forms = PLURAL_FORMS[noun][lang];
+  if (forms.length === 1) return forms[0];
+  if (lang === 'ru') {
+    const tens = count % 100;
+    if (tens >= 11 && tens <= 14) return forms[2];
+    const ones = count % 10;
+    if (ones === 1) return forms[0];
+    if (ones >= 2 && ones <= 4) return forms[1];
+    return forms[2];
+  }
+  return count === 1 ? forms[0] : forms[1];
+}
+
 export const STRINGS = {
   en: {
     appName: "Mariam's Studio — Admin",
@@ -53,7 +84,6 @@ export const STRINGS = {
     markAs: 'Mark as…',
     viewYear: 'Year',
     viewMonth: 'Month',
-    bookingsUnit: 'bookings',
     noBookingsThisDay: 'Nothing booked on this day.',
     addBookingBtn: '+ Add booking',
     newBookingTitle: 'New booking',
@@ -127,7 +157,7 @@ export const STRINGS = {
     categoryDescriptionLabel: 'Short description',
     sortOrderLabel: 'Order',
     serviceCategoryLabel: 'Treatment',
-    zonesInCategory: 'zones',
+    completedCountLabel: 'completed',
     confirmDeleteCategory: 'Delete this treatment? This cannot be undone.',
     categoryHasServicesError: 'This treatment still has services — move or delete them first, or deactivate it instead.',
     uncategorized: 'No treatment',
@@ -207,7 +237,6 @@ export const STRINGS = {
     markAs: 'Отметить как…',
     viewYear: 'Год',
     viewMonth: 'Месяц',
-    bookingsUnit: 'записей',
     noBookingsThisDay: 'На этот день записей нет.',
     addBookingBtn: '+ Добавить запись',
     newBookingTitle: 'Новая запись',
@@ -281,7 +310,7 @@ export const STRINGS = {
     categoryDescriptionLabel: 'Краткое описание',
     sortOrderLabel: 'Порядок',
     serviceCategoryLabel: 'Процедура',
-    zonesInCategory: 'зон(ы)',
+    completedCountLabel: 'завершено',
     confirmDeleteCategory: 'Удалить эту процедуру? Действие необратимо.',
     categoryHasServicesError: 'У этой процедуры ещё есть услуги — сначала перенесите или удалите их, либо просто деактивируйте процедуру.',
     uncategorized: 'Без процедуры',
@@ -361,7 +390,6 @@ export const STRINGS = {
     markAs: 'Նշել որպես…',
     viewYear: 'Տարի',
     viewMonth: 'Ամիս',
-    bookingsUnit: 'գրանցում',
     noBookingsThisDay: 'Այս օրվա համար գրանցումներ չկան։',
     addBookingBtn: '+ Ավելացնել գրանցում',
     newBookingTitle: 'Նոր գրանցում',
@@ -435,7 +463,7 @@ export const STRINGS = {
     categoryDescriptionLabel: 'Կարճ նկարագրություն',
     sortOrderLabel: 'Հերթականություն',
     serviceCategoryLabel: 'Պրոցեդուրա',
-    zonesInCategory: 'գոտի',
+    completedCountLabel: 'ավարտված',
     confirmDeleteCategory: 'Ջնջե՞լ այս պրոցեդուրան։ Այս գործողությունը հնարավոր չէ հետարկել։',
     categoryHasServicesError: 'Այս պրոցեդուրան դեռ ունի ծառայություններ․ նախ տեղափոխեք կամ ջնջեք դրանք, կամ պարզապես անջատեք պրոցեդուրան։',
     uncategorized: 'Առանց պրոցեդուրայի',

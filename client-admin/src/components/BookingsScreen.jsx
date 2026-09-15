@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api.js';
-import { formatPrice, formatDate, WEEKDAY_SHORT, MONTH_FULL } from '../i18n.js';
+import { formatPrice, formatDate, pluralize, WEEKDAY_SHORT, MONTH_FULL } from '../i18n.js';
 import { splitYerevanDateTime } from 'salon-shared/time';
 
 function todayStr() {
@@ -452,7 +452,7 @@ function MonthGrid({ T, lang, year, month, byDate, selectedDate, onPickDay }) {
             <button
               key={dateStr}
               onClick={() => onPickDay(dateStr)}
-              aria-label={`${day}, ${count} ${T.bookingsUnit}`}
+              aria-label={`${day}, ${count} ${pluralize(count, lang, 'bookings')}`}
               aria-pressed={isSelected}
               style={{
                 display: 'flex',
@@ -519,7 +519,7 @@ function YearGrid({ T, lang, bookings, onPickMonth }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontFamily: "'Newsreader',serif", fontSize: 16 }}>{MONTH_FULL[lang][i]}</span>
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-              {s.count} {T.bookingsUnit} · {s.completed} {T.statusCompleted.toLowerCase()}
+              {s.count} {pluralize(s.count, lang, 'bookings')} · {T.completedCountLabel} {s.completed}
             </span>
           </div>
           <span style={{ fontSize: 13.5, fontWeight: 700, color: s.income > 0 ? 'var(--sage)' : 'var(--muted)' }}>

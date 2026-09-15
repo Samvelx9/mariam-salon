@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api.js';
+import { pluralize } from '../i18n.js';
 
 const EMPTY_FORM = {
   nameEn: '',
@@ -171,7 +172,7 @@ export default function CategoriesScreen({ T, lang, onAuthError }) {
                   <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{category[`description_${lang}`]}</span>
                 )}
                 <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-                  {zoneCount(category.id)} {T.zonesInCategory}
+                  {zoneCount(category.id)} {pluralize(zoneCount(category.id), lang, 'zones')}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api.js';
-import { formatPrice } from '../i18n.js';
+import { formatPrice, pluralize } from '../i18n.js';
 
 const EMPTY_FORM = {
   nameEn: '',
@@ -214,7 +214,7 @@ export default function ServicesScreen({ T, lang, onAuthError }) {
                   {category ? category[`name_${lang}`] : T.uncategorized}
                 </span>
                 <span style={{ fontSize: 12.5, color: 'var(--muted)', marginLeft: 'auto' }}>
-                  {rows.length} {T.zonesInCategory}
+                  {rows.length} {pluralize(rows.length, lang, 'zones')}
                 </span>
               </button>
               {isOpen && rows.map((s) => (
