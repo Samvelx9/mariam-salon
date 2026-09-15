@@ -36,16 +36,10 @@ function StepButton({ label, disabled, onClick }) {
 }
 
 export default function CalendarScreen(f) {
-  const { T, lang, services, selectedServiceId, backToServices } = f;
-  const service = services.find((s) => s.id === selectedServiceId);
-  const isHourly = Boolean(service?.is_hourly);
-  // The banner keeps the zone's terms; for an hourly zone the chosen length and
-  // its total live in the picker below, next to the times they affect.
-  const summary = service
-    ? isHourly
-      ? `${formatPrice(service.price_amd, lang)} ${T.perHourSuffix}`
-      : `${service.duration_minutes} ${T.minUnit} · ${formatPrice(service.price_amd, lang)}`
-    : '';
+  const { T, lang, backToServices, basket } = f;
+  const zoneNames = basket.zones.map((z) => z.service[`name_${lang}`]).join(' · ');
+  const summary = `${formatDuration(basket.minutes, T.hourUnit, T.minUnit)} · ${formatPrice(basket.price, lang)}`;
+  const hourlyZones = basket.zones.filter((z) => z.service.is_hourly);
 
   const errorText = f.bannerErrorKey ? T[f.bannerErrorKey] : null;
 
@@ -63,7 +57,7 @@ export default function CalendarScreen(f) {
       />
       <div style={{ padding: '0 24px 12px' }}>
         <SummaryBanner
-          name={service ? service[`name_${lang}`] : ''}
+          name={zoneNames}
           subtitle={summary}
           actionLabel={T.change}
           onAction={backToServices}
@@ -75,8 +69,8 @@ export default function CalendarScreen(f) {
       {/* The length sits above the times, not on the previous screen: the point
           of choosing it here is watching which slots survive it, so the guest
           can see straight away whether Mariam has that long free. */}
-      {isHourly && service && (
-        <div style={{ padding: '0 24px 4px' }}>
+      {hourlyZones.map(({ service, minutes, price }) => (
+        <div key={service.id} style={{ padding: '0 24px 8px' }}>
           <div
             style={{
               background: 'var(--surface)',
@@ -85,30 +79,32 @@ export default function CalendarScreen(f) {
               padding: '12px 14px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{T.howLong}</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>
+                {hourlyZones.length > 1 ? service[`name_${lang}`] : T.howLong}
+              </span>
               <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--terracotta)' }}>
-                {formatPrice(Math.round((service.price_amd * f.bookedMinutes) / 60), lang)}
+                {formatPrice(price, lang)}
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <StepButton
                 label="−"
-                disabled={f.bookedMinutes <= MIN_BOOKING_MINUTES}
-                onClick={() => f.stepMinutes(-STEP_MINUTES)}
+                disabled={minutes <= MIN_BOOKING_MINUTES}
+                onClick={() => f.stepMinutes(service.id, -STEP_MINUTES)}
               />
               <span style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 600 }}>
-                {formatDuration(f.bookedMinutes, T.hourUnit, T.minUnit)}
+                {formatDuration(minutes, T.hourUnit, T.minUnit)}
               </span>
               <StepButton
                 label="+"
-                disabled={f.bookedMinutes >= MAX_BOOKING_MINUTES}
-                onClick={() => f.stepMinutes(STEP_MINUTES)}
+                disabled={minutes >= MAX_BOOKING_MINUTES}
+                onClick={() => f.stepMinutes(service.id, STEP_MINUTES)}
               />
             </div>
           </div>
         </div>
-      )}
+      ))}
 
       <SlotPicker
         T={T}

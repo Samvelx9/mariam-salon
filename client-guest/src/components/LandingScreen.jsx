@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import LangSwitcher from './LangSwitcher.jsx';
 import { api } from '../api.js';
 import { formatPrice, WEEKDAY_FULL } from '../i18n.js';
+import { BasketBar } from './ServicesScreen.jsx';
 import {
   telHref,
   whatsappHref,
@@ -58,6 +59,7 @@ export default function LandingScreen(f) {
     treatmentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   return (
+    <>
     <div className="scrollarea" style={{ flex: 1, overflowY: 'auto' }}>
       {/* ---------------------------------------------------------------- hero */}
       <div style={{ position: 'relative', padding: '20px 24px 32px', overflow: 'visible' }}>
@@ -300,6 +302,10 @@ export default function LandingScreen(f) {
         <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.brandName}</span>
       </div>
     </div>
+    {f.basket.zones.length > 0 && (
+      <BasketBar T={T} lang={lang} basket={f.basket} onContinue={f.continueToCalendar} />
+    )}
+    </>
   );
 }
 

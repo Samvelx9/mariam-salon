@@ -45,14 +45,12 @@ export const api = {
 
   getServices: () => request('/services'),
 
-  // `durationMinutes` only means anything for a treatment priced by the hour:
-  // it decides how much room a start time needs.
-  getSlots: (serviceId, { excludeBookingId, durationMinutes } = {}) => {
-    const params = new URLSearchParams();
+  // Slots are asked for by length, not by zone: a visit can cover several zones
+  // and what decides which starts work is how long the whole thing runs.
+  getSlots: ({ excludeBookingId, durationMinutes } = {}) => {
+    const params = new URLSearchParams({ durationMinutes });
     if (excludeBookingId) params.set('excludeBookingId', excludeBookingId);
-    if (durationMinutes) params.set('durationMinutes', durationMinutes);
-    const query = params.toString();
-    return request(`/services/${serviceId}/slots${query ? `?${query}` : ''}`);
+    return request(`/slots?${params.toString()}`);
   },
 
   createBooking: (payload) =>

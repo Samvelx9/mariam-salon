@@ -6,12 +6,15 @@ import { MIN_BOOKING_MINUTES, MAX_BOOKING_MINUTES } from 'salon-shared/booking';
 const INITIAL_FLOW_STATE = {
   step: 'landing',
   selectedCategoryId: null,
-  selectedServiceId: null,
-  // How long the guest wants, for treatments priced by the hour — in minutes,
-  // on the same 30-minute grid the slots use. Ignored by every fixed-price
-  // zone. Named apart from the salon's opening `hours`, which this hook also
-  // returns.
-  bookedMinutes: MIN_BOOKING_MINUTES,
+  // A visit can cover several zones, from several treatments — underarms and
+  // full legs and an upper lip, booked as one appointment. The basket is the
+  // ids in the order they were tapped.
+  selectedServiceIds: [],
+  // Chosen lengths for the zones priced by the hour, keyed by service id, in
+  // minutes on the same 30-minute grid the slots use. A fixed-price zone is
+  // never in here. Named apart from the salon's opening `hours`, which this
+  // hook also returns.
+  hourlyMinutes: {},
   slotsData: null,
   slotsLoading: false,
   selectedDayIndex: 0,
@@ -75,8 +78,32 @@ export function useBookingFlow() {
   // Flat view of every bookable zone, for the screens that only ever look a
   // service up by id (calendar, confirmation, manage).
   const services = useMemo(() => categories.flatMap((c) => c.services), [categories]);
+  const servicesById = useMemo(() => new Map(services.map((s) => [s.id, s])), [services]);
   const selectedCategory =
     categories.find((c) => c.id === flow.selectedCategoryId) ?? null;
+
+  // What the basket adds up to. An hourly zone contributes the length chosen
+  // for it, priced pro rata; a fixed zone contributes its own two numbers.
+  const basket = useMemo(() => {
+    const zones = flow.selectedServiceIds
+      .map((id) => servicesById.get(id))
+      .filter(Boolean)
+      .map((service) => {
+        const minutes = service.is_hourly
+          ? flow.hourlyMinutes[service.id] ?? MIN_BOOKING_MINUTES
+          : service.duration_minutes;
+        const price = service.is_hourly
+          ? Math.round((service.price_amd * minutes) / 60)
+          : service.price_amd;
+        return { service, minutes, price };
+      });
+    return {
+      zones,
+      minutes: zones.reduce((sum, z) => sum + z.minutes, 0),
+      price: zones.reduce((sum, z) => sum + z.price, 0),
+      hasHourly: zones.some((z) => z.service.is_hourly),
+    };
+  }, [flow.selectedServiceIds, flow.hourlyMinutes, servicesById]);
 
   const patch = (fields) => setFlow((prev) => ({ ...prev, ...fields }));
 
@@ -92,7 +119,7 @@ export function useBookingFlow() {
   // part of the slot request rather than something applied afterwards.
   // `keepDay` is for reloads that happen while the guest is already looking at
   // a particular day — the day stays put, only the times below it change.
-  async function loadSlots(serviceId, { excludeBookingId, durationMinutes, keepDay } = {}) {
+  async function loadSlots({ excludeBookingId, durationMinutes, keepDay } = {}) {
     const requestId = slotRequestRef.current + 1;
     slotRequestRef.current = requestId;
 
@@ -103,7 +130,7 @@ export function useBookingFlow() {
       ...(keepDay ? {} : { selectedDayIndex: 0 }),
     });
     try {
-      const data = await api.getSlots(serviceId, { excludeBookingId, durationMinutes });
+      const data = await api.getSlots({ excludeBookingId, durationMinutes });
       if (slotRequestRef.current !== requestId) return;
       patch({ slotsData: data, slotsLoading: false });
     } catch {
@@ -118,23 +145,42 @@ export function useBookingFlow() {
   };
   const toggleLangMenu = () => setLangMenuOpen((v) => !v);
 
-  const selectService = (id) => patch({ selectedServiceId: id });
+  // Tapping a zone adds or removes it. An hourly zone arrives with the shortest
+  // length already chosen, so the basket is always complete enough to price.
+  const toggleService = (id) =>
+    setFlow((prev) => {
+      const chosen = prev.selectedServiceIds.includes(id);
+      const selectedServiceIds = chosen
+        ? prev.selectedServiceIds.filter((x) => x !== id)
+        : [...prev.selectedServiceIds, id];
+      const hourlyMinutes = { ...prev.hourlyMinutes };
+      if (chosen) delete hourlyMinutes[id];
+      else if (servicesById.get(id)?.is_hourly) hourlyMinutes[id] = MIN_BOOKING_MINUTES;
+      return { ...prev, selectedServiceIds, hourlyMinutes, selectedSlot: null };
+    });
+
+  const clearBasket = () => patch({ selectedServiceIds: [], hourlyMinutes: {} });
   // Stepping by a delta off the previous state, not off a value captured when
   // the button rendered: two quick taps on + otherwise both read the same
   // starting length and the second one is lost. Clamping lives here too, so the
   // buttons can't push the length outside what the server will accept.
-  const stepMinutes = (delta) =>
-    setFlow((prev) => ({
-      ...prev,
-      bookedMinutes: Math.min(
-        MAX_BOOKING_MINUTES,
-        Math.max(MIN_BOOKING_MINUTES, prev.bookedMinutes + delta)
-      ),
-    }));
+  const stepMinutes = (serviceId, delta) =>
+    setFlow((prev) => {
+      const current = prev.hourlyMinutes[serviceId] ?? MIN_BOOKING_MINUTES;
+      const next = Math.min(MAX_BOOKING_MINUTES, Math.max(MIN_BOOKING_MINUTES, current + delta));
+      if (next === current) return prev;
+      return {
+        ...prev,
+        hourlyMinutes: { ...prev.hourlyMinutes, [serviceId]: next },
+        selectedSlot: null,
+      };
+    });
 
+  // Opening a treatment keeps whatever is already in the basket: that is how a
+  // visit comes to span two treatments.
   const selectCategory = (id) =>
-    patch({ step: 'services', selectedCategoryId: id, selectedServiceId: null, bookedMinutes: MIN_BOOKING_MINUTES, bannerErrorKey: null });
-  const backToLanding = () => patch({ step: 'landing', selectedServiceId: null });
+    patch({ step: 'services', selectedCategoryId: id, bannerErrorKey: null });
+  const backToLanding = () => patch({ step: 'landing' });
 
   // The calendar's slot list is owned by the effect below rather than fetched
   // here: the guest changes the length *on* that screen, so the list has to
@@ -148,16 +194,13 @@ export function useBookingFlow() {
   // Reloads whenever the calendar is opened and whenever the length changes
   // while it's open.
   useEffect(() => {
-    if (flow.step !== 'calendar' || !flow.selectedServiceId) return;
-    if (loadedForRef.current === flow.bookedMinutes) return;
+    if (flow.step !== 'calendar' || basket.minutes === 0) return;
+    if (loadedForRef.current === basket.minutes) return;
     const isFirstLoad = loadedForRef.current === null;
-    loadedForRef.current = flow.bookedMinutes;
-    loadSlots(flow.selectedServiceId, {
-      durationMinutes: flow.bookedMinutes,
-      keepDay: !isFirstLoad,
-    });
+    loadedForRef.current = basket.minutes;
+    loadSlots({ durationMinutes: basket.minutes, keepDay: !isFirstLoad });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flow.step, flow.selectedServiceId, flow.bookedMinutes]);
+  }, [flow.step, basket.minutes]);
 
   const selectDay = (index) => patch({ selectedDayIndex: index, selectedSlot: null });
   const selectSlot = (time) => patch({ selectedSlot: time });
@@ -173,29 +216,27 @@ export function useBookingFlow() {
       patch({ formError: true });
       return;
     }
-    const service = services.find((s) => s.id === flow.selectedServiceId);
     const day = flow.slotsData?.days[flow.selectedDayIndex];
-    if (!service || !day || !flow.selectedSlot) return;
+    if (basket.zones.length === 0 || !day || !flow.selectedSlot) return;
 
     patch({ busy: true, bannerErrorKey: null });
     try {
       const booking = await api.createBooking({
-        serviceId: service.id,
         date: day.date,
         time: flow.selectedSlot,
         customerName: flow.name,
         customerPhone: flow.phone,
-        durationMinutes: flow.bookedMinutes,
+        items: basket.zones.map((z) => ({
+          serviceId: z.service.id,
+          ...(z.service.is_hourly ? { durationMinutes: z.minutes } : {}),
+        })),
       });
       patch({
         busy: false,
         step: 'confirmation',
         activeBooking: {
           id: booking.id,
-          serviceId: service.id,
-          name_en: service.name_en,
-          name_ru: service.name_ru,
-          name_hy: service.name_hy,
+          items: booking.items,
           startTime: booking.startTime,
           endTime: booking.endTime,
           status: booking.status,
@@ -207,7 +248,7 @@ export function useBookingFlow() {
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'slot_taken' || err.code === 'too_soon')) {
         patch({ busy: false, step: 'calendar', selectedSlot: null, bannerErrorKey: errorKeyFor(err) });
-        loadSlots(service.id, { durationMinutes: flow.bookedMinutes, keepDay: true });
+        loadSlots({ durationMinutes: basket.minutes, keepDay: true });
       } else {
         patch({ busy: false, bannerErrorKey: 'genericError' });
       }
@@ -245,10 +286,7 @@ export function useBookingFlow() {
       step: 'manage',
       activeBooking: {
         id: booking.id,
-        serviceId: booking.service_id,
-        name_en: booking.name_en,
-        name_ru: booking.name_ru,
-        name_hy: booking.name_hy,
+        items: booking.items,
         startTime: booking.start_time,
         endTime: booking.end_time,
         status: booking.status,
@@ -263,9 +301,9 @@ export function useBookingFlow() {
     patch({ step: 'reschedulePicker', manageOrigin: origin, bannerErrorKey: null });
     const booked = flow.activeBooking;
     // Rescheduling keeps the length already booked, so the slot list has to be
-    // asked for exactly that — not the zone's nominal duration.
+    // asked for exactly that — not the zones' nominal durations.
     const minutes = Math.round((new Date(booked.endTime) - new Date(booked.startTime)) / 60000);
-    loadSlots(booked.serviceId, { excludeBookingId: booked.id, durationMinutes: minutes });
+    loadSlots({ excludeBookingId: booked.id, durationMinutes: minutes });
   }
   const goRescheduleFromConfirmation = () => goReschedule('confirmation');
   const goRescheduleFromManage = () => goReschedule('manage');
@@ -340,7 +378,9 @@ export function useBookingFlow() {
 
     selectCategory,
     backToLanding,
-    selectService,
+    toggleService,
+    clearBasket,
+    basket,
     stepMinutes,
     continueToCalendar,
     backToServices,

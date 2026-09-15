@@ -46,6 +46,37 @@ export const MONTH_FULL = {
   hy: ['Հունվար', 'Փետրվար', 'Մարտ', 'Ապրիլ', 'Մայիս', 'Հունիս', 'Հուլիս', 'Օգոստոս', 'Սեպտեմբեր', 'Հոկտեմբեր', 'Նոյեմբեր', 'Դեկտեմբեր'],
 };
 
+// Counted nouns: Russian picks between three forms by the last digits, Armenian
+// keeps the singular after a numeral, English just adds an -s. Without this a
+// count reads as "12 зон(ы)" or "1 записей", which is the kind of thing that
+// makes a dashboard feel machine-translated.
+const PLURAL_FORMS = {
+  bookings: {
+    en: ['booking', 'bookings'],
+    ru: ['запись', 'записи', 'записей'],
+    hy: ['գրանցում'],
+  },
+  zones: {
+    en: ['zone', 'zones'],
+    ru: ['зона', 'зоны', 'зон'],
+    hy: ['գոտի'],
+  },
+};
+
+export function pluralize(count, lang, noun) {
+  const forms = PLURAL_FORMS[noun][lang];
+  if (forms.length === 1) return forms[0];
+  if (lang === 'ru') {
+    const tens = count % 100;
+    if (tens >= 11 && tens <= 14) return forms[2];
+    const ones = count % 10;
+    if (ones === 1) return forms[0];
+    if (ones >= 2 && ones <= 4) return forms[1];
+    return forms[2];
+  }
+  return count === 1 ? forms[0] : forms[1];
+}
+
 export function formatPrice(amount, lang) {
   return amount.toLocaleString(LOCALE_TAG[lang]) + ' ֏';
 }

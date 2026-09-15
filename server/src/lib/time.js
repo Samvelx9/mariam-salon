@@ -35,6 +35,17 @@ export function utcToLocalTimeStr(date) {
   return local.toISOString().slice(11, 16);
 }
 
+// The inverse of localToUtc: the Yerevan calendar date and wall-clock time an
+// instant falls on. Used when only one half of a booking's date/time is being
+// changed and the other has to be kept exactly as it was.
+export function splitLocalDateTime(instant) {
+  const local = new Date(new Date(instant).getTime() + TZ_OFFSET_MINUTES * 60000);
+  return {
+    dateStr: local.toISOString().slice(0, 10),
+    timeStr: local.toISOString().slice(11, 16),
+  };
+}
+
 export function addMinutes(date, minutes) {
   return new Date(date.getTime() + minutes * 60000);
 }

@@ -5,8 +5,14 @@ import { pool } from '../db.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { requireAdminAuth } from '../middleware/auth.js';
 import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
-import { todayDateStr, addDaysToDateStr, localToUtc } from '../lib/time.js';
-import { bookingShape, isValidDuration, MIN_BOOKING_MINUTES } from '../lib/booking.js';
+import { todayDateStr, addDaysToDateStr, localToUtc, splitLocalDateTime } from '../lib/time.js';
+import {
+  bookingsQuery,
+  getBookingWithItems,
+  resolveItems,
+  insertBookingWithItems,
+  replaceItems,
+} from '../services/bookings.js';
 import {
   PROFILE_TEXT_COLUMNS,
   getProfileRow,
@@ -699,20 +705,13 @@ adminRouter.get(
     const rangeEnd = localToUtc(addDaysToDateStr(to, 1), '00:00');
 
     const params = [rangeStart, rangeEnd];
-    let query = `
-      SELECT b.id, b.service_id, b.start_time, b.end_time, b.customer_name, b.customer_phone,
-             b.status, b.price_at_booking, s.name_en, s.name_ru, s.name_hy
-      FROM bookings b
-      JOIN services s ON s.id = b.service_id
-      WHERE b.start_time >= $1 AND b.start_time < $2`;
-
+    let where = 'b.start_time >= $1 AND b.start_time < $2';
     if (status) {
       params.push(status);
-      query += ` AND b.status = $3`;
+      where += ' AND b.status = $3';
     }
-    query += ' ORDER BY b.start_time ASC';
 
-    const { rows } = await pool.query(query, params);
+    const { rows } = await pool.query(bookingsQuery({ where }), params);
     res.json(rows);
   })
 );
@@ -726,14 +725,13 @@ adminRouter.get(
 adminRouter.post(
   '/bookings',
   asyncHandler(async (req, res) => {
-    const serviceId = Number(req.body?.serviceId);
     const date = req.body?.date;
     const time = req.body?.time;
     const customerName = cleanString(req.body?.customerName, 100);
     const customerPhone = cleanString(req.body?.customerPhone, 30);
     const status = req.body?.status ?? 'confirmed';
 
-    if (!Number.isInteger(serviceId) || !isValidDate(date) || !isValidTime(time)) {
+    if (!isValidDate(date) || !isValidTime(time)) {
       return res.status(400).json({ error: 'invalid_request' });
     }
     if (!customerName || !customerPhone) {
@@ -743,46 +741,143 @@ adminRouter.post(
       return res.status(400).json({ error: 'invalid_status' });
     }
 
-    const { rows: serviceRows } = await pool.query(
-      `SELECT s.id, s.duration_minutes, s.price_amd, c.is_hourly
-       FROM services s
-       JOIN service_categories c ON c.id = s.category_id
-       WHERE s.id = $1`,
-      [serviceId]
-    );
-    const service = serviceRows[0];
-    if (!service) {
-      return res.status(404).json({ error: 'service_not_found' });
+    // Mariam may book a zone she has since deactivated — the price list moving
+    // on shouldn't stop her recording what she actually did.
+    const rawItems = req.body?.items ?? [{ serviceId: req.body?.serviceId, durationMinutes: req.body?.durationMinutes }];
+    const resolved = await resolveItems(rawItems, { requireActive: false });
+    if (resolved.error) {
+      const httpStatus = resolved.error === 'service_not_found' ? 404 : 400;
+      return res.status(httpStatus).json({ error: resolved.error });
     }
-
-    const requestedMinutes =
-      req.body?.durationMinutes === undefined
-        ? MIN_BOOKING_MINUTES
-        : Number(req.body.durationMinutes);
-    if (service.is_hourly && !isValidDuration(requestedMinutes)) {
-      return res.status(400).json({ error: 'invalid_duration' });
-    }
-    const { durationMinutes, price } = bookingShape(service, requestedMinutes);
 
     const startTime = localToUtc(date, time);
-    const endTime = new Date(startTime.getTime() + durationMinutes * 60_000);
+    const endTime = new Date(startTime.getTime() + resolved.totalMinutes * 60_000);
 
+    const client = await pool.connect();
     try {
-      const { rows } = await pool.query(
-        `INSERT INTO bookings
-           (service_id, start_time, end_time, customer_name, customer_phone, status, price_at_booking)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, service_id, start_time, end_time, customer_name, customer_phone,
-                   status, price_at_booking`,
-        [serviceId, startTime, endTime, customerName, customerPhone, status, price]
-      );
-      res.status(201).json(rows[0]);
+      await client.query('BEGIN');
+      const bookingId = await insertBookingWithItems(client, {
+        startTime,
+        endTime,
+        customerName,
+        customerPhone,
+        status,
+        totalPrice: resolved.totalPrice,
+        items: resolved.items,
+      });
+      await client.query('COMMIT');
+      res.status(201).json(await getBookingWithItems(bookingId));
     } catch (err) {
+      await client.query('ROLLBACK');
       if (err.code === EXCLUSION_VIOLATION) {
         return res.status(409).json({ error: 'slot_taken' });
       }
       throw err;
+    } finally {
+      client.release();
     }
+  })
+);
+
+// Editing a booking that already exists — a client moves her appointment, adds
+// a zone, corrects a phone number. Same latitude as creating one by hand: no
+// opening-hours or cutoff check, but the database still refuses an overlap.
+// Every field is optional; whatever is left out keeps its current value.
+adminRouter.patch(
+  '/bookings/:id',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid_booking_id' });
+    }
+
+    const existing = await getBookingWithItems(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'booking_not_found' });
+    }
+
+    const fields = [];
+    const values = [];
+    const set = (column, value) => {
+      values.push(value);
+      fields.push(`${column} = $${values.length}`);
+    };
+
+    if (req.body?.customerName !== undefined) {
+      const name = cleanString(req.body.customerName, 100);
+      if (!name) return res.status(400).json({ error: 'missing_customer_details' });
+      set('customer_name', name);
+    }
+    if (req.body?.customerPhone !== undefined) {
+      const phone = cleanString(req.body.customerPhone, 30);
+      if (!phone) return res.status(400).json({ error: 'missing_customer_details' });
+      set('customer_phone', phone);
+    }
+    if (req.body?.status !== undefined) {
+      if (!BOOKING_STATUSES.includes(req.body.status)) {
+        return res.status(400).json({ error: 'invalid_status' });
+      }
+      set('status', req.body.status);
+    }
+
+    // Zones and time interact: changing the zones changes how long the visit
+    // runs, so the end time is always recomputed from whichever of the two the
+    // request touched.
+    let resolved = null;
+    if (req.body?.items !== undefined) {
+      resolved = await resolveItems(req.body.items, { requireActive: false });
+      if (resolved.error) {
+        const httpStatus = resolved.error === 'service_not_found' ? 404 : 400;
+        return res.status(httpStatus).json({ error: resolved.error });
+      }
+      set('price_at_booking', resolved.totalPrice);
+    }
+
+    const movingTime = req.body?.date !== undefined || req.body?.time !== undefined;
+    if (movingTime || resolved) {
+      const { dateStr, timeStr } = splitLocalDateTime(existing.start_time);
+      const date = req.body?.date ?? dateStr;
+      const time = req.body?.time ?? timeStr;
+      if (!isValidDate(date) || !isValidTime(time)) {
+        return res.status(400).json({ error: 'invalid_request' });
+      }
+      const minutes =
+        resolved?.totalMinutes ??
+        Math.round((new Date(existing.end_time) - new Date(existing.start_time)) / 60000);
+      const startTime = localToUtc(date, time);
+      set('start_time', startTime);
+      set('end_time', new Date(startTime.getTime() + minutes * 60_000));
+    }
+
+    if (fields.length === 0 && !resolved) {
+      return res.status(400).json({ error: 'no_fields_to_update' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      if (fields.length > 0) {
+        values.push(id);
+        await client.query(
+          `UPDATE bookings SET ${fields.join(', ')} WHERE id = $${values.length}`,
+          values
+        );
+      }
+      if (resolved) {
+        await replaceItems(client, id, resolved.items);
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      if (err.code === EXCLUSION_VIOLATION) {
+        return res.status(409).json({ error: 'slot_taken' });
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    res.json(await getBookingWithItems(id));
   })
 );
 
@@ -997,13 +1092,23 @@ adminRouter.get(
 
     const { rows: incomeByService } = await pool.query(
       `SELECT s.id AS service_id, s.name_en, s.name_ru, s.name_hy,
-              COALESCE(SUM(b.price_at_booking), 0) AS total, COUNT(b.id) AS count
-       FROM bookings b
-       JOIN services s ON s.id = b.service_id
+              COALESCE(SUM(i.price_at_booking), 0) AS total, COUNT(i.id) AS count
+       FROM booking_items i
+       JOIN bookings b ON b.id = i.booking_id
+       JOIN services s ON s.id = i.service_id
        WHERE b.status = 'completed'
          AND (b.start_time AT TIME ZONE '+04:00')::date BETWEEN $1 AND $2
        GROUP BY s.id, s.name_en, s.name_ru, s.name_hy
        ORDER BY total DESC`,
+      [from, to]
+    );
+
+    // One visit covering three zones is one completed booking but three rows
+    // above, so the headline count is asked for separately.
+    const { rows: completedRows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM bookings
+       WHERE status = 'completed'
+         AND (start_time AT TIME ZONE '+04:00')::date BETWEEN $1 AND $2`,
       [from, to]
     );
 
@@ -1029,7 +1134,7 @@ adminRouter.get(
 
     const incomeTotal = byService.reduce((sum, row) => sum + row.total, 0);
     const expensesTotal = byCategory.reduce((sum, row) => sum + row.total, 0);
-    const bookingsCompleted = byService.reduce((sum, row) => sum + row.count, 0);
+    const bookingsCompleted = completedRows[0].count;
 
     res.json({
       period: { from, to },

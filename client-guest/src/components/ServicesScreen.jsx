@@ -1,28 +1,19 @@
 import LangSwitcher from './LangSwitcher.jsx';
-import { formatPrice } from '../i18n.js';
+import { formatPrice, pluralize } from '../i18n.js';
+import { formatDuration } from 'salon-shared/booking';
 import { ClockIcon, ChevronLeftIcon, CategoryIcon } from './Icons.jsx';
 
-// The price list for one treatment: every zone Mariam offers in that category,
-// with its duration and price. Picking a zone is step 1 of the booking flow.
+// The price list for one treatment. Zones toggle rather than replace one
+// another: a visit often covers several, and going back to the landing page for
+// another treatment keeps everything already chosen.
 export default function ServicesScreen(f) {
-  const {
-    T,
-    lang,
-    selectedCategory,
-    servicesLoading,
-    selectedServiceId,
-    selectService,
-    continueToCalendar,
-    backToLanding,
-  } = f;
+  const { T, lang, selectedCategory, servicesLoading, toggleService, continueToCalendar, backToLanding } = f;
 
   const zones = selectedCategory?.services ?? [];
-  // An hourly treatment is priced per hour, so the guest picks the length here,
-  // before the time picker — the number of hours decides which start times are
-  // long enough to offer.
   // The length of an hourly booking is chosen on the next screen, against the
   // real schedule — see CalendarScreen. Here the rate is all that's shown.
   const isHourly = Boolean(selectedCategory?.is_hourly);
+  const chosen = f.selectedServiceIds;
 
   return (
     <>
@@ -110,11 +101,11 @@ export default function ServicesScreen(f) {
             <span style={{ fontSize: 14, color: 'var(--muted)' }}>{T.noZonesYet}</span>
           )}
           {zones.map((s) => {
-            const selected = s.id === selectedServiceId;
+            const selected = chosen.includes(s.id);
             return (
               <button
                 key={s.id}
-                onClick={() => selectService(s.id)}
+                onClick={() => toggleService(s.id)}
                 style={{
                   textAlign: 'left',
                   width: '100%',
@@ -145,7 +136,7 @@ export default function ServicesScreen(f) {
                     style={{
                       width: 20,
                       height: 20,
-                      borderRadius: '50%',
+                      borderRadius: 6,
                       border: selected ? '1.5px solid var(--sage)' : '1.5px solid var(--line)',
                       background: selected ? 'var(--sage)' : 'transparent',
                       flexShrink: 0,
@@ -167,16 +158,51 @@ export default function ServicesScreen(f) {
         </div>
       </div>
 
-      {selectedServiceId && (
-        <div style={{ padding: '14px 24px 20px', borderTop: '1px solid var(--line)', background: 'var(--surface)' }}>
-          <button
-            onClick={continueToCalendar}
-            style={{ width: '100%', padding: 16, borderRadius: 999, background: 'var(--sage)', color: 'var(--white)', fontSize: 15, fontWeight: 600 }}
-          >
-            {T.continueBtn}
-          </button>
-        </div>
+      {chosen.length > 0 && (
+        <BasketBar T={T} lang={lang} basket={f.basket} onContinue={continueToCalendar} onAddMore={backToLanding} />
       )}
     </>
+  );
+}
+
+// What the visit adds up to so far, and the two ways forward: another treatment
+// or a time. Shown on the zone list and on the landing page, so the basket is
+// never out of sight once something is in it.
+export function BasketBar({ T, lang, basket, onContinue, onAddMore }) {
+  return (
+    <div style={{ padding: '12px 24px 18px', borderTop: '1px solid var(--line)', background: 'var(--surface)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+        <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+          {basket.zones.length} {pluralize(basket.zones.length, lang, 'zones')} · {formatDuration(basket.minutes, T.hourUnit, T.minUnit)}
+        </span>
+        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--terracotta)' }}>
+          {formatPrice(basket.price, lang)}
+        </span>
+      </div>
+      {onAddMore && (
+        <button
+          onClick={onAddMore}
+          style={{
+            width: '100%',
+            padding: 12,
+            borderRadius: 999,
+            border: '1px solid var(--line)',
+            background: 'var(--white)',
+            fontSize: 13.5,
+            fontWeight: 600,
+            color: 'var(--ink)',
+            marginBottom: 8,
+          }}
+        >
+          {T.addAnotherTreatment}
+        </button>
+      )}
+      <button
+        onClick={onContinue}
+        style={{ width: '100%', padding: 16, borderRadius: 999, background: 'var(--sage)', color: 'var(--white)', fontSize: 15, fontWeight: 600 }}
+      >
+        {T.continueBtn}
+      </button>
+    </div>
   );
 }

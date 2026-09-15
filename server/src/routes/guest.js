@@ -7,7 +7,13 @@ import {
   CUTOFF_MINUTES,
 } from '../services/availability.js';
 import { localToUtc, addMinutes } from '../lib/time.js';
-import { bookingShape, isValidDuration, MIN_BOOKING_MINUTES } from '../lib/booking.js';
+import {
+  bookingsQuery,
+  getBookingWithItems,
+  resolveItems,
+  insertBookingWithItems,
+} from '../services/bookings.js';
+import { isValidDuration, MIN_BOOKING_MINUTES } from '../lib/booking.js';
 import { notifyTelegram } from '../services/telegram.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
@@ -17,17 +23,11 @@ export const guestRouter = Router();
 
 const EXCLUSION_VIOLATION = '23P01';
 
-async function getBookingWithService(id) {
-  const { rows } = await pool.query(
-    `SELECT b.id, b.service_id, b.start_time, b.end_time, b.customer_name,
-            b.customer_phone, b.status, b.price_at_booking,
-            s.duration_minutes, s.name_en, s.name_ru, s.name_hy
-     FROM bookings b
-     JOIN services s ON s.id = b.service_id
-     WHERE b.id = $1`,
-    [id]
-  );
-  return rows[0] || null;
+// The length a booking actually runs for, which for an hourly one is what the
+// client chose and for a multi-zone one is the whole visit — never the sum of
+// what the zones happen to cost today.
+function bookedMinutes(booking) {
+  return Math.round((new Date(booking.end_time) - new Date(booking.start_time)) / 60000);
 }
 
 // GET /api/profile — everything the landing page says about Mariam
@@ -140,37 +140,52 @@ guestRouter.get('/services/:id/slots', asyncHandler(async (req, res) => {
   res.json({ serviceId, days, durationMinutes: durationMinutes ?? service.duration_minutes });
 }));
 
+// GET /api/slots — open starts for a visit of a given length, whatever mix of
+// zones makes it up. The per-service route above stays for a single zone (and
+// is what the QA suite drives); this one is what the basket asks.
+const MAX_VISIT_MINUTES = 8 * 60;
+
+guestRouter.get('/slots', asyncHandler(async (req, res) => {
+  const durationMinutes = Number(req.query.durationMinutes);
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 5 || durationMinutes > MAX_VISIT_MINUTES) {
+    return res.status(400).json({ error: 'invalid_duration' });
+  }
+
+  const excludeBookingId = req.query.excludeBookingId
+    ? Number(req.query.excludeBookingId)
+    : undefined;
+
+  const days = await getAvailableSlots(
+    { duration_minutes: durationMinutes },
+    { excludeBookingId, durationMinutes }
+  );
+  res.json({ days, durationMinutes });
+}));
+
 // POST /api/bookings — create a booking for an open slot
 guestRouter.post('/bookings', asyncHandler(async (req, res) => {
-  const serviceId = Number(req.body?.serviceId);
   const date = req.body?.date;
   const time = req.body?.time;
   const customerName = cleanString(req.body?.customerName, 100);
   const customerPhone = cleanString(req.body?.customerPhone, 30);
 
-  if (!Number.isInteger(serviceId) || !isValidDate(date) || !isValidTime(time)) {
+  if (!isValidDate(date) || !isValidTime(time)) {
     return res.status(400).json({ error: 'invalid_request' });
   }
   if (!customerName || !customerPhone) {
     return res.status(400).json({ error: 'missing_customer_details' });
   }
 
-  const service = await getActiveService(serviceId);
-  if (!service) {
-    return res.status(404).json({ error: 'service_not_found' });
+  // One zone or several — a single-zone booking is just a basket of one.
+  const rawItems = req.body?.items ?? [{ serviceId: req.body?.serviceId, durationMinutes: req.body?.durationMinutes }];
+  const resolved = await resolveItems(rawItems, { requireActive: true });
+  if (resolved.error) {
+    const status = resolved.error === 'service_not_found' ? 404 : 400;
+    return res.status(status).json({ error: resolved.error });
   }
-
-  const requestedMinutes =
-    req.body?.durationMinutes === undefined
-      ? MIN_BOOKING_MINUTES
-      : Number(req.body.durationMinutes);
-  if (service.is_hourly && !isValidDuration(requestedMinutes)) {
-    return res.status(400).json({ error: 'invalid_duration' });
-  }
-  const { durationMinutes, price } = bookingShape(service, requestedMinutes);
 
   const startTime = localToUtc(date, time);
-  const endTime = addMinutes(startTime, durationMinutes);
+  const endTime = addMinutes(startTime, resolved.totalMinutes);
 
   if (startTime < addMinutes(new Date(), CUTOFF_MINUTES)) {
     return res.status(400).json({ error: 'too_soon', cutoffMinutes: CUTOFF_MINUTES });
@@ -180,37 +195,44 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
     return res.status(409).json({ error: 'slot_taken' });
   }
 
+  const client = await pool.connect();
   try {
-    const { rows } = await pool.query(
-      `INSERT INTO bookings (service_id, start_time, end_time, customer_name, customer_phone, price_at_booking)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, start_time, end_time, status`,
-      [serviceId, startTime, endTime, customerName, customerPhone, price]
-    );
+    await client.query('BEGIN');
+    const bookingId = await insertBookingWithItems(client, {
+      startTime,
+      endTime,
+      customerName,
+      customerPhone,
+      totalPrice: resolved.totalPrice,
+      items: resolved.items,
+    });
+    await client.query('COMMIT');
 
-    const booking = rows[0];
+    const booking = await getBookingWithItems(bookingId);
     await notifyTelegram({
       type: 'booking_created',
-      booking: { ...booking, customer_name: customerName, customer_phone: customerPhone },
-      service,
-      durationMinutes,
+      booking,
+      durationMinutes: resolved.totalMinutes,
     });
 
     res.status(201).json({
       id: booking.id,
-      serviceId,
       startTime: booking.start_time,
       endTime: booking.end_time,
       status: booking.status,
       customerName,
       customerPhone,
-      priceAtBooking: price,
+      priceAtBooking: booking.price_at_booking,
+      items: booking.items,
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     if (err.code === EXCLUSION_VIOLATION) {
       return res.status(409).json({ error: 'slot_taken' });
     }
     throw err;
+  } finally {
+    client.release();
   }
 }));
 
@@ -222,14 +244,11 @@ guestRouter.post('/bookings/lookup', asyncHandler(async (req, res) => {
   }
 
   const { rows } = await pool.query(
-    `SELECT b.id, b.service_id, b.start_time, b.end_time, b.status, b.price_at_booking,
-            b.customer_name, s.name_en, s.name_ru, s.name_hy
-     FROM bookings b
-     JOIN services s ON s.id = b.service_id
-     WHERE b.customer_phone = $1
+    bookingsQuery({
+      where: `b.customer_phone = $1
        AND b.status NOT IN ('cancelled', 'completed')
-       AND b.start_time > now()
-     ORDER BY b.start_time ASC`,
+       AND b.start_time > now()`,
+    }),
     [phone]
   );
 
@@ -243,7 +262,7 @@ guestRouter.post('/bookings/:id/cancel', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'invalid_booking_id' });
   }
 
-  const booking = await getBookingWithService(id);
+  const booking = await getBookingWithItems(id);
   if (!booking) {
     return res.status(404).json({ error: 'booking_not_found' });
   }
@@ -267,7 +286,7 @@ guestRouter.post('/bookings/:id/reschedule', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'invalid_request' });
   }
 
-  const booking = await getBookingWithService(id);
+  const booking = await getBookingWithItems(id);
   if (!booking) {
     return res.status(404).json({ error: 'booking_not_found' });
   }
@@ -276,10 +295,7 @@ guestRouter.post('/bookings/:id/reschedule', asyncHandler(async (req, res) => {
   }
 
   const startTime = localToUtc(date, time);
-  const bookedMinutes = Math.round(
-    (new Date(booking.end_time) - new Date(booking.start_time)) / 60000
-  );
-  const endTime = addMinutes(startTime, bookedMinutes);
+  const endTime = addMinutes(startTime, bookedMinutes(booking));
 
   if (startTime < addMinutes(new Date(), CUTOFF_MINUTES)) {
     return res.status(400).json({ error: 'too_soon', cutoffMinutes: CUTOFF_MINUTES });

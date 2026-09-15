@@ -3,8 +3,8 @@ import SummaryBanner from './SummaryBanner.jsx';
 import { formatDateAt, parseLocalDate } from '../i18n.js';
 
 export default function DetailsScreen(f) {
-  const { T, lang, services, selectedServiceId, backToCalendar } = f;
-  const service = services.find((s) => s.id === selectedServiceId);
+  const { T, lang, basket, backToCalendar } = f;
+  const zoneNames = basket.zones.map((z) => z.service[`name_${lang}`]).join(' · ');
   const day = f.slotsData?.days[f.selectedDayIndex];
   const dateTimeSummary = day && f.selectedSlot ? formatDateAt(parseLocalDate(day.date), f.selectedSlot, lang) : '';
 
@@ -22,7 +22,7 @@ export default function DetailsScreen(f) {
       />
       <div style={{ padding: '0 24px 12px' }}>
         <SummaryBanner
-          name={service ? service[`name_${lang}`] : ''}
+          name={zoneNames}
           subtitle={dateTimeSummary}
           actionLabel={T.edit}
           onAction={backToCalendar}

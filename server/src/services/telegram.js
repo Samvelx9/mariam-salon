@@ -3,14 +3,21 @@ import { formatDuration } from '../lib/booking.js';
 
 function formatMessage(event) {
   const { booking } = event;
-  const serviceName = event.service?.name_ru ?? booking.name_ru;
+  const items = booking.items ?? [];
+  // A visit can cover several zones, so they're listed one per line rather than
+  // squeezed into the "Услуга:" line.
+  const serviceName =
+    items.length > 1
+      ? '\n  · ' + items.map((i) => i.name_ru).join('\n  · ')
+      : items[0]?.name_ru ?? booking.name_ru ?? '';
   const when = formatYerevanDateTime(new Date(booking.start_time));
-  // An hourly treatment is booked for a length the guest chose, so the message
-  // has to say how long — otherwise Mariam can't tell a one-hour electrolysis
-  // session from a three-hour one.
-  const duration = event.service?.is_hourly && event.durationMinutes
-    ? `Длительность: ${formatDuration(event.durationMinutes, 'ч', 'мин')}\n`
-    : '';
+  // How long the visit runs matters whenever it isn't implied by the zone —
+  // an hourly session is whatever length the client chose, and several zones
+  // together take as long as they take.
+  const minutes =
+    event.durationMinutes ??
+    Math.round((new Date(booking.end_time) - new Date(booking.start_time)) / 60000);
+  const duration = minutes ? `Длительность: ${formatDuration(minutes, 'ч', 'мин')}\n` : '';
 
   if (event.type === 'booking_created') {
     return (
@@ -28,6 +35,7 @@ function formatMessage(event) {
       `❌ Отмена записи\n` +
       `Услуга: ${serviceName}\n` +
       `Дата: ${when}\n` +
+      duration +
       `Клиент: ${booking.customer_name}\n` +
       `Телефон: ${booking.customer_phone}`
     );

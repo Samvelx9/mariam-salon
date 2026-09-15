@@ -38,7 +38,9 @@ export default function BookingsListScreen(f) {
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontFamily: "'Newsreader',serif", fontSize: 16 }}>{b[`name_${lang}`]}</span>
+                <span style={{ fontFamily: "'Newsreader',serif", fontSize: 16 }}>
+                  {(b.items ?? []).map((z) => z[`name_${lang}`]).join(' · ')}
+                </span>
                 <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{formatDateAt(dateObj, time, lang)}</span>
               </div>
               <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--terracotta)', flexShrink: 0 }}>

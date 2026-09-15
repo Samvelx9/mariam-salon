@@ -1,4 +1,5 @@
 import Header from './Header.jsx';
+import ZoneList from './ZoneList.jsx';
 import { formatDateAt, formatPrice } from '../i18n.js';
 import { splitYerevanDateTime } from '../lib/time.js';
 
@@ -21,7 +22,7 @@ export default function ManageScreen(f) {
         <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 16, padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 13, color: 'var(--muted)' }}>{T.summaryService}</span>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{activeBooking[`name_${lang}`]}</span>
+            <ZoneList items={activeBooking.items} lang={lang} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 13, color: 'var(--muted)' }}>{T.summaryWhen}</span>

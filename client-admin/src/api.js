@@ -92,6 +92,9 @@ export const api = {
   // Mariam's own booking — no cutoff or opening-hours check, see the endpoint.
   createBooking: (payload) =>
     request('/admin/bookings', { method: 'POST', body: JSON.stringify(payload) }),
+  // Any field of an existing booking — zones, time, client, status.
+  updateBooking: (id, payload) =>
+    request(`/admin/bookings/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
   updateBookingStatus: (id, status) =>
     request(`/admin/bookings/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   // Cancelled bookings only — the endpoint refuses anything else.

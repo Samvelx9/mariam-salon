@@ -1,36 +1,5 @@
 export * from 'salon-shared/i18n';
 
-// Counted nouns: Russian picks between three forms by the last digits, Armenian
-// keeps the singular after a numeral, English just adds an -s. Without this a
-// count reads as "12 зон(ы)" or "1 записей", which is the kind of thing that
-// makes a dashboard feel machine-translated.
-const PLURAL_FORMS = {
-  bookings: {
-    en: ['booking', 'bookings'],
-    ru: ['запись', 'записи', 'записей'],
-    hy: ['գրանցում'],
-  },
-  zones: {
-    en: ['zone', 'zones'],
-    ru: ['зона', 'зоны', 'зон'],
-    hy: ['գոտի'],
-  },
-};
-
-export function pluralize(count, lang, noun) {
-  const forms = PLURAL_FORMS[noun][lang];
-  if (forms.length === 1) return forms[0];
-  if (lang === 'ru') {
-    const tens = count % 100;
-    if (tens >= 11 && tens <= 14) return forms[2];
-    const ones = count % 10;
-    if (ones === 1) return forms[0];
-    if (ones >= 2 && ones <= 4) return forms[1];
-    return forms[2];
-  }
-  return count === 1 ? forms[0] : forms[1];
-}
-
 export const STRINGS = {
   en: {
     appName: "Mariam's Studio — Admin",
@@ -87,6 +56,9 @@ export const STRINGS = {
     noBookingsThisDay: 'Nothing booked on this day.',
     addBookingBtn: '+ Add booking',
     newBookingTitle: 'New booking',
+    editBookingTitle: 'Edit booking',
+    addZone: '+ Add a zone…',
+    removeZone: 'Remove this zone',
     manualBookingHint: 'A booking you add here ignores opening hours and the booking cutoff — only an overlap with an existing booking is refused. The client is not notified.',
     bookingServiceLabel: 'Zone',
     bookingStatusLabel: 'Status',
@@ -247,6 +219,9 @@ export const STRINGS = {
     noBookingsThisDay: 'На этот день записей нет.',
     addBookingBtn: '+ Добавить запись',
     newBookingTitle: 'Новая запись',
+    editBookingTitle: 'Изменить запись',
+    addZone: '+ Добавить зону…',
+    removeZone: 'Убрать эту зону',
     manualBookingHint: 'Запись, добавленная здесь, не проверяется по часам работы и по правилу «не позже чем за 1,5 часа» — отклоняется только наложение на другую запись. Клиенту уведомление не отправляется.',
     bookingServiceLabel: 'Зона',
     bookingStatusLabel: 'Статус',
@@ -407,6 +382,9 @@ export const STRINGS = {
     noBookingsThisDay: 'Այս օրվա համար գրանցումներ չկան։',
     addBookingBtn: '+ Ավելացնել գրանցում',
     newBookingTitle: 'Նոր գրանցում',
+    editBookingTitle: 'Փոխել գրանցումը',
+    addZone: '+ Ավելացնել գոտի…',
+    removeZone: 'Հեռացնել այս գոտին',
     manualBookingHint: 'Այստեղ ավելացված գրանցումը չի ստուգվում աշխատանքային ժամերով և 1,5 ժամվա սահմանափակմամբ — մերժվում է միայն այլ գրանցման հետ համընկնելը։ Հաճախորդին ծանուցում չի ուղարկվում։',
     bookingServiceLabel: 'Գոտի',
     bookingStatusLabel: 'Կարգավիճակ',

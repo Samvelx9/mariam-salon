@@ -48,13 +48,14 @@ const STATUS_COLOR = {
 };
 
 const EMPTY_BOOKING_FORM = {
-  serviceId: '',
+  // Each entry is { serviceId, durationMinutes } — the length only matters for
+  // a zone whose treatment is priced by the hour.
+  items: [],
   date: '',
   time: '10:00',
   customerName: '',
   customerPhone: '',
   status: 'confirmed',
-  durationMinutes: String(MIN_BOOKING_MINUTES),
 };
 
 export default function BookingsScreen({ T, lang, onAuthError }) {
@@ -70,7 +71,8 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   const [selected, setSelected] = useState(() => new Set());
   const [deleting, setDeleting] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [addingOpen, setAddingOpen] = useState(false);
+  // null when the form is closed, 'new' when adding, or the id being edited.
+  const [editingBookingId, setEditingBookingId] = useState(null);
   const [bookingForm, setBookingForm] = useState(EMPTY_BOOKING_FORM);
   const [savingBooking, setSavingBooking] = useState(false);
 
@@ -180,24 +182,51 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   function openAddBooking() {
     setBookingForm({
       ...EMPTY_BOOKING_FORM,
-      serviceId: String(services[0]?.id ?? ''),
+      items: [],
       date: cleanupView ? todayStr() : selectedDate || todayStr(),
     });
     setError(null);
-    setAddingOpen(true);
+    setEditingBookingId('new');
+  }
+
+  // Editing starts from what the booking actually is, zones and all, so saving
+  // without touching anything changes nothing.
+  function openEditBooking(booking) {
+    const { dateObj, time } = splitYerevanDateTime(booking.start_time);
+    setBookingForm({
+      items: (booking.items ?? []).map((item) => ({
+        serviceId: String(item.service_id),
+        durationMinutes: String(item.duration_minutes),
+      })),
+      date: `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`,
+      time,
+      customerName: booking.customer_name,
+      customerPhone: booking.customer_phone,
+      status: booking.status,
+    });
+    setError(null);
+    setEditingBookingId(booking.id);
   }
 
   async function saveBooking() {
     const payload = {
-      serviceId: Number(bookingForm.serviceId),
+      items: bookingForm.items.map((item) => ({
+        serviceId: Number(item.serviceId),
+        durationMinutes: Number(item.durationMinutes) || MIN_BOOKING_MINUTES,
+      })),
       date: bookingForm.date,
       time: bookingForm.time,
       customerName: bookingForm.customerName.trim(),
       customerPhone: bookingForm.customerPhone.trim(),
       status: bookingForm.status,
-      durationMinutes: Number(bookingForm.durationMinutes) || MIN_BOOKING_MINUTES,
     };
-    if (!payload.serviceId || !payload.date || !payload.time || !payload.customerName || !payload.customerPhone) {
+    if (
+      payload.items.length === 0 ||
+      !payload.date ||
+      !payload.time ||
+      !payload.customerName ||
+      !payload.customerPhone
+    ) {
       setError('missingBookingFields');
       return;
     }
@@ -205,13 +234,17 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
     setSavingBooking(true);
     setError(null);
     try {
-      await api.createBooking(payload);
-      setAddingOpen(false);
-      // Jump to wherever the new booking landed, so it's visible straight away.
-      setStatusFilter('');
-      setView('month');
-      setCursor(payload.date.slice(0, 7) + '-01');
-      setSelectedDate(payload.date);
+      if (editingBookingId === 'new') {
+        await api.createBooking(payload);
+        // Jump to wherever the new booking landed, so it's visible straight away.
+        setStatusFilter('');
+        setView('month');
+        setCursor(payload.date.slice(0, 7) + '-01');
+        setSelectedDate(payload.date);
+      } else {
+        await api.updateBooking(editingBookingId, payload);
+      }
+      setEditingBookingId(null);
       await load();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'slot_taken') {
@@ -293,7 +326,7 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
               </option>
             ))}
           </select>
-          <button className="btn-primary" onClick={openAddBooking} disabled={addingOpen || services.length === 0}>
+          <button className="btn-primary" onClick={openAddBooking} disabled={editingBookingId !== null || services.length === 0}>
             {T.addBookingBtn}
           </button>
         </div>
@@ -301,10 +334,11 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
 
       {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--terracotta)' }}>{T[error]}</p>}
 
-      {addingOpen && (
-        <NewBookingForm
+      {editingBookingId === 'new' && (
+        <BookingForm
           T={T}
           lang={lang}
+          title={T.newBookingTitle}
           form={bookingForm}
           setForm={setBookingForm}
           services={services}
@@ -312,7 +346,7 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
           saving={savingBooking}
           onSave={saveBooking}
           onCancel={() => {
-            setAddingOpen(false);
+            setEditingBookingId(null);
             setError(null);
           }}
         />
@@ -398,16 +432,37 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {listed.map((b) => (
-                    <BookingRow
-                      key={b.id}
-                      T={T}
-                      lang={lang}
-                      booking={b}
-                      showDate={cleanupView}
-                      selected={selected.has(b.id)}
-                      onToggle={() => toggleOne(b.id)}
-                      onChangeStatus={(status) => changeStatus(b.id, status)}
-                    />
+                    <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <BookingRow
+                        T={T}
+                        lang={lang}
+                        booking={b}
+                        showDate={cleanupView}
+                        selected={selected.has(b.id)}
+                        isEditing={editingBookingId === b.id}
+                        onToggle={() => toggleOne(b.id)}
+                        onEdit={() => openEditBooking(b)}
+                        onChangeStatus={(status) => changeStatus(b.id, status)}
+                      />
+                      {editingBookingId === b.id && (
+                        <BookingForm
+                          T={T}
+                          lang={lang}
+                          title={T.editBookingTitle}
+                          form={bookingForm}
+                          setForm={setBookingForm}
+                          services={services}
+                          categories={categories}
+                          saving={savingBooking}
+                          onSave={saveBooking}
+                          onCancel={() => {
+                            setEditingBookingId(null);
+                            setError(null);
+                          }}
+                          nested
+                        />
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -534,7 +589,7 @@ function YearGrid({ T, lang, bookings, onPickMonth }) {
   );
 }
 
-function BookingRow({ T, lang, booking, showDate, selected, onToggle, onChangeStatus }) {
+function BookingRow({ T, lang, booking, showDate, selected, isEditing, onToggle, onEdit, onChangeStatus }) {
   const { dateObj, time } = splitYerevanDateTime(booking.start_time);
   return (
     <div
@@ -549,17 +604,20 @@ function BookingRow({ T, lang, booking, showDate, selected, onToggle, onChangeSt
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={{ fontFamily: "'Newsreader',serif", fontSize: 15 }}>
             {showDate ? `${formatDate(dateObj, lang)} · ` : ''}
-            {time} · {booking[`name_${lang}`]}
+            {time} · {(booking.items ?? []).map((z) => z[`name_${lang}`]).join(' · ')}
           </span>
           <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
             {booking.customer_name} · {booking.customer_phone} · {formatPrice(booking.price_at_booking, lang)}
           </span>
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR[booking.status] }}>
           {T[STATUS_KEY[booking.status]]}
         </span>
+        <button className="btn-outline" onClick={onEdit} disabled={isEditing}>
+          {T.editBtn}
+        </button>
         <select
           className="field-input"
           style={{ width: 150 }}
@@ -582,55 +640,137 @@ function BookingRow({ T, lang, booking, showDate, selected, onToggle, onChangeSt
   );
 }
 
-function NewBookingForm({ T, lang, form, setForm, services, categories, saving, onSave, onCancel }) {
-  const selectedService = services.find((s) => String(s.id) === String(form.serviceId));
+// One form for both jobs: adding a booking by hand and editing one that exists.
+// Zones are chips with an "add" picker rather than a list of checkboxes — the
+// price list runs to two dozen rows, which would bury the rest of the form.
+function BookingForm({ T, lang, title, form, setForm, services, categories, saving, onSave, onCancel, nested }) {
+  const byId = new Map(services.map((s) => [String(s.id), s]));
+  const chosenIds = form.items.map((i) => i.serviceId);
+
+  const addService = (serviceId) => {
+    if (!serviceId || chosenIds.includes(serviceId)) return;
+    setForm({
+      ...form,
+      items: [...form.items, { serviceId, durationMinutes: String(MIN_BOOKING_MINUTES) }],
+    });
+  };
+  const removeService = (serviceId) =>
+    setForm({ ...form, items: form.items.filter((i) => i.serviceId !== serviceId) });
+  const setItemMinutes = (serviceId, minutes) =>
+    setForm({
+      ...form,
+      items: form.items.map((i) => (i.serviceId === serviceId ? { ...i, durationMinutes: minutes } : i)),
+    });
+
+  const totals = form.items.reduce(
+    (acc, item) => {
+      const service = byId.get(item.serviceId);
+      if (!service) return acc;
+      const minutes = service.is_hourly ? Number(item.durationMinutes) || MIN_BOOKING_MINUTES : service.duration_minutes;
+      const price = service.is_hourly
+        ? Math.round((service.price_amd * minutes) / 60)
+        : service.price_amd;
+      return { minutes: acc.minutes + minutes, price: acc.price + price };
+    },
+    { minutes: 0, price: 0 }
+  );
+
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12, borderLeft: '3px solid var(--sage)' }}>
-      <h3 style={{ fontSize: 16, fontWeight: 600 }}>{T.newBookingTitle}</h3>
+    <div
+      className="card"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        ...(nested
+          ? { marginLeft: 16, borderLeft: '3px solid var(--terracotta)', background: 'var(--bg)' }
+          : { borderLeft: '3px solid var(--sage)' }),
+      }}
+    >
+      <h3 style={{ fontSize: 16, fontWeight: 600 }}>{title}</h3>
       <p style={{ margin: 0, fontSize: 12.5, color: 'var(--muted)', maxWidth: 680 }}>{T.manualBookingHint}</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.bookingServiceLabel}</label>
-          <select
-            className="field-input"
-            value={form.serviceId}
-            onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
-          >
-            {categories.map((c) => {
-              const rows = services.filter((s) => s.category_id === c.id);
-              if (rows.length === 0) return null;
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.bookingServiceLabel}</label>
+        {form.items.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {form.items.map((item) => {
+              const service = byId.get(item.serviceId);
+              if (!service) return null;
               return (
-                <optgroup key={c.id} label={c[`name_${lang}`]}>
-                  {rows.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s[`name_${lang}`]} ·{' '}
-                      {s.is_hourly
-                        ? `${formatPrice(s.price_amd, lang)} ${T.perHourSuffix}`
-                        : `${s.duration_minutes} ${T.minUnit} · ${formatPrice(s.price_amd, lang)}`}
-                    </option>
-                  ))}
-                </optgroup>
+                <div
+                  key={item.serviceId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    flexWrap: 'wrap',
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: '1px solid var(--line)',
+                    background: 'var(--white)',
+                  }}
+                >
+                  <span style={{ fontSize: 13.5 }}>{service[`name_${lang}`]}</span>
+                  {service.is_hourly ? (
+                    <select
+                      className="field-input"
+                      style={{ width: 170, padding: '4px 8px' }}
+                      value={item.durationMinutes}
+                      onChange={(e) => setItemMinutes(item.serviceId, e.target.value)}
+                    >
+                      {DURATION_CHOICES.map((m) => (
+                        <option key={m} value={m}>
+                          {formatDuration(m, T.hourUnit, T.minUnit)} ·{' '}
+                          {formatPrice(Math.round((service.price_amd * m) / 60), lang)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                      {service.duration_minutes} {T.minUnit} · {formatPrice(service.price_amd, lang)}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => removeService(item.serviceId)}
+                    aria-label={T.removeZone}
+                    style={{ marginLeft: 'auto', fontSize: 16, lineHeight: 1, color: 'var(--muted)' }}
+                  >
+                    ×
+                  </button>
+                </div>
               );
             })}
-          </select>
-        </div>
-        {selectedService?.is_hourly && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.bookingLengthLabel}</label>
-            <select
-              className="field-input"
-              value={form.durationMinutes}
-              onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })}
-            >
-              {DURATION_CHOICES.map((m) => (
-                <option key={m} value={m}>
-                  {formatDuration(m, T.hourUnit, T.minUnit)} ·{' '}
-                  {formatPrice(Math.round((selectedService.price_amd * m) / 60), lang)}
-                </option>
-              ))}
-            </select>
           </div>
         )}
+        <select className="field-input" value="" onChange={(e) => addService(e.target.value)}>
+          <option value="">{T.addZone}</option>
+          {categories.map((c) => {
+            const rows = services.filter((s) => s.category_id === c.id && !chosenIds.includes(String(s.id)));
+            if (rows.length === 0) return null;
+            return (
+              <optgroup key={c.id} label={c[`name_${lang}`]}>
+                {rows.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s[`name_${lang}`]} ·{' '}
+                    {s.is_hourly
+                      ? `${formatPrice(s.price_amd, lang)} ${T.perHourSuffix}`
+                      : `${s.duration_minutes} ${T.minUnit} · ${formatPrice(s.price_amd, lang)}`}
+                  </option>
+                ))}
+              </optgroup>
+            );
+          })}
+        </select>
+        {form.items.length > 0 && (
+          <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+            {formatDuration(totals.minutes, T.hourUnit, T.minUnit)} ·{' '}
+            <strong style={{ color: 'var(--terracotta)' }}>{formatPrice(totals.price, lang)}</strong>
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         <Field label={T.dateLabel} type="date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
         <Field label={T.timeLabel} type="time" value={form.time} onChange={(v) => setForm({ ...form, time: v })} />
         <Field
@@ -650,8 +790,11 @@ function NewBookingForm({ T, lang, form, setForm, services, categories, saving, 
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value })}
           >
-            <option value="confirmed">{T.statusConfirmed}</option>
-            <option value="completed">{T.statusCompleted}</option>
+            {Object.entries(STATUS_KEY).map(([value, key]) => (
+              <option key={value} value={value}>
+                {T[key]}
+              </option>
+            ))}
           </select>
         </div>
       </div>
