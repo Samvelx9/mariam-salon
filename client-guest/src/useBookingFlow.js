@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from './api.js';
 import { DEFAULT_LANG, STRINGS } from './i18n.js';
+import { MIN_BOOKING_MINUTES } from 'salon-shared/booking';
 
 const INITIAL_FLOW_STATE = {
   step: 'landing',
   selectedCategoryId: null,
   selectedServiceId: null,
-  // How many hours the guest wants, for treatments priced by the hour. Ignored
-  // by every fixed-price zone. Named apart from the salon's opening `hours`,
-  // which this hook also returns.
-  bookedHours: 1,
+  // How long the guest wants, for treatments priced by the hour — in minutes,
+  // on the same 30-minute grid the slots use. Ignored by every fixed-price
+  // zone. Named apart from the salon's opening `hours`, which this hook also
+  // returns.
+  bookedMinutes: MIN_BOOKING_MINUTES,
   slotsData: null,
   slotsLoading: false,
   selectedDayIndex: 0,
@@ -78,12 +80,12 @@ export function useBookingFlow() {
 
   const patch = (fields) => setFlow((prev) => ({ ...prev, ...fields }));
 
-  // The number of hours changes which start times leave enough room, so it is
+  // The chosen length changes which start times leave enough room, so it is
   // part of the slot request rather than something applied afterwards.
-  async function loadSlots(serviceId, { excludeBookingId, hours } = {}) {
+  async function loadSlots(serviceId, { excludeBookingId, durationMinutes } = {}) {
     patch({ slotsLoading: true, slotsData: null, selectedDayIndex: 0, selectedSlot: null });
     try {
-      const data = await api.getSlots(serviceId, { excludeBookingId, hours });
+      const data = await api.getSlots(serviceId, { excludeBookingId, durationMinutes });
       patch({ slotsData: data, slotsLoading: false });
     } catch {
       patch({ slotsLoading: false, bannerErrorKey: 'genericError' });
@@ -97,15 +99,15 @@ export function useBookingFlow() {
   const toggleLangMenu = () => setLangMenuOpen((v) => !v);
 
   const selectService = (id) => patch({ selectedServiceId: id });
-  const selectHours = (bookedHours) => patch({ bookedHours });
+  const selectMinutes = (bookedMinutes) => patch({ bookedMinutes });
 
   const selectCategory = (id) =>
-    patch({ step: 'services', selectedCategoryId: id, selectedServiceId: null, bookedHours: 1, bannerErrorKey: null });
+    patch({ step: 'services', selectedCategoryId: id, selectedServiceId: null, bookedMinutes: MIN_BOOKING_MINUTES, bannerErrorKey: null });
   const backToLanding = () => patch({ step: 'landing', selectedServiceId: null });
 
   const continueToCalendar = () => {
     patch({ step: 'calendar', bannerErrorKey: null });
-    loadSlots(flow.selectedServiceId, { hours: flow.bookedHours });
+    loadSlots(flow.selectedServiceId, { durationMinutes: flow.bookedMinutes });
   };
   const backToServices = () => patch({ step: 'services' });
 
@@ -135,7 +137,7 @@ export function useBookingFlow() {
         time: flow.selectedSlot,
         customerName: flow.name,
         customerPhone: flow.phone,
-        hours: flow.bookedHours,
+        durationMinutes: flow.bookedMinutes,
       });
       patch({
         busy: false,
@@ -157,7 +159,7 @@ export function useBookingFlow() {
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'slot_taken' || err.code === 'too_soon')) {
         patch({ busy: false, step: 'calendar', selectedSlot: null, bannerErrorKey: errorKeyFor(err) });
-        loadSlots(service.id, { hours: flow.bookedHours });
+        loadSlots(service.id, { durationMinutes: flow.bookedMinutes });
       } else {
         patch({ busy: false, bannerErrorKey: 'genericError' });
       }
@@ -212,11 +214,10 @@ export function useBookingFlow() {
   function goReschedule(origin) {
     patch({ step: 'reschedulePicker', manageOrigin: origin, bannerErrorKey: null });
     const booked = flow.activeBooking;
-    const bookedHours = Math.max(
-      1,
-      Math.round((new Date(booked.endTime) - new Date(booked.startTime)) / 3600000)
-    );
-    loadSlots(booked.serviceId, { excludeBookingId: booked.id, hours: bookedHours });
+    // Rescheduling keeps the length already booked, so the slot list has to be
+    // asked for exactly that — not the zone's nominal duration.
+    const minutes = Math.round((new Date(booked.endTime) - new Date(booked.startTime)) / 60000);
+    loadSlots(booked.serviceId, { excludeBookingId: booked.id, durationMinutes: minutes });
   }
   const goRescheduleFromConfirmation = () => goReschedule('confirmation');
   const goRescheduleFromManage = () => goReschedule('manage');
@@ -292,7 +293,7 @@ export function useBookingFlow() {
     selectCategory,
     backToLanding,
     selectService,
-    selectHours,
+    selectMinutes,
     continueToCalendar,
     backToServices,
     selectDay,

@@ -389,7 +389,10 @@ clean-up work earlier the same day.
 - **Hourly treatments.** Some treatments are sold by time, not by area —
   electrolysis is worked hair by hair — so a treatment carries an `is_hourly`
   flag that changes how its whole price list reads: each zone's `price_amd`
-  becomes an hourly rate, and the guest chooses 1-6 whole hours. The chosen
+  becomes an hourly rate, and the guest chooses a length in 30-minute steps from
+  half an hour to six hours, priced pro rata (half an hour costs half the rate).
+  Half an hour is both the minimum and the step because it matches the slot grid,
+  so every bookable length still lands on a real slot boundary. The chosen
   length is part of the slot request, since it decides which start times leave
   enough room, and both the duration and the price are recomputed on the server
   from the hours rather than taken from the client. Rescheduling now keeps the

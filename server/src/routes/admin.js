@@ -6,7 +6,7 @@ import { asyncHandler } from '../lib/asyncHandler.js';
 import { requireAdminAuth } from '../middleware/auth.js';
 import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
 import { todayDateStr, addDaysToDateStr, localToUtc } from '../lib/time.js';
-import { bookingShape, isValidHours } from '../lib/booking.js';
+import { bookingShape, isValidDuration, MIN_BOOKING_MINUTES } from '../lib/booking.js';
 import {
   PROFILE_TEXT_COLUMNS,
   getProfileRow,
@@ -755,11 +755,14 @@ adminRouter.post(
       return res.status(404).json({ error: 'service_not_found' });
     }
 
-    const hours = req.body?.hours === undefined ? 1 : Number(req.body.hours);
-    if (service.is_hourly && !isValidHours(hours)) {
-      return res.status(400).json({ error: 'invalid_hours' });
+    const requestedMinutes =
+      req.body?.durationMinutes === undefined
+        ? MIN_BOOKING_MINUTES
+        : Number(req.body.durationMinutes);
+    if (service.is_hourly && !isValidDuration(requestedMinutes)) {
+      return res.status(400).json({ error: 'invalid_duration' });
     }
-    const { durationMinutes, price } = bookingShape(service, hours);
+    const { durationMinutes, price } = bookingShape(service, requestedMinutes);
 
     const startTime = localToUtc(date, time);
     const endTime = new Date(startTime.getTime() + durationMinutes * 60_000);

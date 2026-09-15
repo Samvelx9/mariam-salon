@@ -3,6 +3,7 @@ import SummaryBanner from './SummaryBanner.jsx';
 import SlotPicker from './SlotPicker.jsx';
 import ErrorBanner from './ErrorBanner.jsx';
 import { formatPrice } from '../i18n.js';
+import { formatDuration } from 'salon-shared/booking';
 
 export default function CalendarScreen(f) {
   const { T, lang, services, selectedServiceId, backToServices } = f;
@@ -11,7 +12,10 @@ export default function CalendarScreen(f) {
   // length and what that costs — not the zone's nominal duration and rate.
   const summary = service
     ? service.is_hourly
-      ? `${f.bookedHours} ${T.hourUnit} · ${formatPrice(service.price_amd * f.bookedHours, lang)}`
+      ? `${formatDuration(f.bookedMinutes, T.hourUnit, T.minUnit)} · ${formatPrice(
+          Math.round((service.price_amd * f.bookedMinutes) / 60),
+          lang
+        )}`
       : `${service.duration_minutes} ${T.minUnit} · ${formatPrice(service.price_amd, lang)}`
     : '';
 

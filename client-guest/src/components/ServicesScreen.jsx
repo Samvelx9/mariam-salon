@@ -1,7 +1,35 @@
 import LangSwitcher from './LangSwitcher.jsx';
 import { formatPrice } from '../i18n.js';
-import { HOUR_CHOICES } from 'salon-shared/booking';
+import {
+  STEP_MINUTES,
+  MIN_BOOKING_MINUTES,
+  MAX_BOOKING_MINUTES,
+  formatDuration,
+} from 'salon-shared/booking';
 import { ClockIcon, ChevronLeftIcon, CategoryIcon } from './Icons.jsx';
+
+function StepButton({ label, disabled, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label === '+' ? 'plus' : 'minus'}
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: '50%',
+        fontSize: 20,
+        lineHeight: 1,
+        border: '1px solid var(--line)',
+        background: disabled ? 'var(--bg)' : 'var(--white)',
+        color: disabled ? 'var(--line)' : 'var(--ink)',
+        flexShrink: 0,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
 
 // The price list for one treatment: every zone Mariam offers in that category,
 // with its duration and price. Picking a zone is step 1 of the booking flow.
@@ -174,31 +202,25 @@ export default function ServicesScreen(f) {
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{T.howLong}</span>
                 <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--terracotta)' }}>
-                  {formatPrice(selectedZone.price_amd * f.bookedHours, lang)}
+                  {formatPrice(Math.round((selectedZone.price_amd * f.bookedMinutes) / 60), lang)}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {HOUR_CHOICES.map((h) => {
-                  const active = h === f.bookedHours;
-                  return (
-                    <button
-                      key={h}
-                      onClick={() => f.selectHours(h)}
-                      style={{
-                        minWidth: 48,
-                        padding: '9px 12px',
-                        borderRadius: 999,
-                        fontSize: 13,
-                        fontWeight: active ? 700 : 500,
-                        border: active ? '1.5px solid var(--sage)' : '1px solid var(--line)',
-                        background: active ? 'var(--sage-light)' : 'var(--white)',
-                        color: 'var(--ink)',
-                      }}
-                    >
-                      {h} {T.hourUnit}
-                    </button>
-                  );
-                })}
+              {/* A stepper rather than a row of twelve pills: half-hour steps up
+                  to six hours is too many choices to lay out at phone width. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <StepButton
+                  label="−"
+                  disabled={f.bookedMinutes <= MIN_BOOKING_MINUTES}
+                  onClick={() => f.selectMinutes(f.bookedMinutes - STEP_MINUTES)}
+                />
+                <span style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 600 }}>
+                  {formatDuration(f.bookedMinutes, T.hourUnit, T.minUnit)}
+                </span>
+                <StepButton
+                  label="+"
+                  disabled={f.bookedMinutes >= MAX_BOOKING_MINUTES}
+                  onClick={() => f.selectMinutes(f.bookedMinutes + STEP_MINUTES)}
+                />
               </div>
             </div>
           )}

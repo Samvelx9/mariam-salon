@@ -45,12 +45,12 @@ export const api = {
 
   getServices: () => request('/services'),
 
-  // `hours` only means anything for a treatment priced by the hour: it decides
-  // how much room a start time needs.
-  getSlots: (serviceId, { excludeBookingId, hours } = {}) => {
+  // `durationMinutes` only means anything for a treatment priced by the hour:
+  // it decides how much room a start time needs.
+  getSlots: (serviceId, { excludeBookingId, durationMinutes } = {}) => {
     const params = new URLSearchParams();
     if (excludeBookingId) params.set('excludeBookingId', excludeBookingId);
-    if (hours) params.set('hours', hours);
+    if (durationMinutes) params.set('durationMinutes', durationMinutes);
     const query = params.toString();
     return request(`/services/${serviceId}/slots${query ? `?${query}` : ''}`);
   },

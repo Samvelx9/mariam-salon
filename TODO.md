@@ -77,7 +77,8 @@ prompt text behind each step below.
 - [x] **Treatments can be priced by the hour** (`service_categories.is_hourly`,
       migration `1789390653100_hourly-treatments`). Ticking "Почасовая оплата" on
       a treatment turns every zone's price into an hourly rate; the guest then
-      picks 1–6 hours, and the slot list only offers starts with that much room.
+      picks a length in 30-minute steps, from half an hour up to six, priced pro
+      rata, and the slot list only offers starts with that much room.
       Duration and price are always computed server-side from the chosen hours,
       never trusted from the client.
   - [ ] **Mariam decides whether Electrolysis is hourly.** Left off for now: the

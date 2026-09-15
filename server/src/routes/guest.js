@@ -7,7 +7,7 @@ import {
   CUTOFF_MINUTES,
 } from '../services/availability.js';
 import { localToUtc, addMinutes } from '../lib/time.js';
-import { bookingShape, isValidHours } from '../lib/booking.js';
+import { bookingShape, isValidDuration, MIN_BOOKING_MINUTES } from '../lib/booking.js';
 import { notifyTelegram } from '../services/telegram.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
@@ -127,11 +127,13 @@ guestRouter.get('/services/:id/slots', asyncHandler(async (req, res) => {
   // enough room; for a fixed one the query is ignored.
   let durationMinutes;
   if (service.is_hourly) {
-    const hours = req.query.hours === undefined ? 1 : Number(req.query.hours);
-    if (!isValidHours(hours)) {
-      return res.status(400).json({ error: 'invalid_hours' });
+    durationMinutes =
+      req.query.durationMinutes === undefined
+        ? MIN_BOOKING_MINUTES
+        : Number(req.query.durationMinutes);
+    if (!isValidDuration(durationMinutes)) {
+      return res.status(400).json({ error: 'invalid_duration' });
     }
-    durationMinutes = hours * 60;
   }
 
   const days = await getAvailableSlots(service, { excludeBookingId, durationMinutes });
@@ -158,11 +160,14 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'service_not_found' });
   }
 
-  const hours = req.body?.hours === undefined ? 1 : Number(req.body.hours);
-  if (service.is_hourly && !isValidHours(hours)) {
-    return res.status(400).json({ error: 'invalid_hours' });
+  const requestedMinutes =
+    req.body?.durationMinutes === undefined
+      ? MIN_BOOKING_MINUTES
+      : Number(req.body.durationMinutes);
+  if (service.is_hourly && !isValidDuration(requestedMinutes)) {
+    return res.status(400).json({ error: 'invalid_duration' });
   }
-  const { durationMinutes, price } = bookingShape(service, hours);
+  const { durationMinutes, price } = bookingShape(service, requestedMinutes);
 
   const startTime = localToUtc(date, time);
   const endTime = addMinutes(startTime, durationMinutes);

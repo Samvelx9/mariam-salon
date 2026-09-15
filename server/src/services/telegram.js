@@ -1,4 +1,5 @@
 import { formatYerevanDateTime } from '../lib/formatMessageTime.js';
+import { formatDuration } from '../lib/booking.js';
 
 function formatMessage(event) {
   const { booking } = event;
@@ -8,7 +9,7 @@ function formatMessage(event) {
   // has to say how long — otherwise Mariam can't tell a one-hour electrolysis
   // session from a three-hour one.
   const duration = event.service?.is_hourly && event.durationMinutes
-    ? `Длительность: ${event.durationMinutes / 60} ч\n`
+    ? `Длительность: ${formatDuration(event.durationMinutes, 'ч', 'мин')}\n`
     : '';
 
   if (event.type === 'booking_created') {

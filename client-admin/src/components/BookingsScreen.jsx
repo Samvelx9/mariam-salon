@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api.js';
 import { formatPrice, formatDate, pluralize, WEEKDAY_SHORT, MONTH_FULL } from '../i18n.js';
 import { splitYerevanDateTime } from 'salon-shared/time';
-import { HOUR_CHOICES } from 'salon-shared/booking';
+import { DURATION_CHOICES, MIN_BOOKING_MINUTES, formatDuration } from 'salon-shared/booking';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -54,7 +54,7 @@ const EMPTY_BOOKING_FORM = {
   customerName: '',
   customerPhone: '',
   status: 'confirmed',
-  hours: '1',
+  durationMinutes: String(MIN_BOOKING_MINUTES),
 };
 
 export default function BookingsScreen({ T, lang, onAuthError }) {
@@ -195,7 +195,7 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
       customerName: bookingForm.customerName.trim(),
       customerPhone: bookingForm.customerPhone.trim(),
       status: bookingForm.status,
-      hours: Number(bookingForm.hours) || 1,
+      durationMinutes: Number(bookingForm.durationMinutes) || MIN_BOOKING_MINUTES,
     };
     if (!payload.serviceId || !payload.date || !payload.time || !payload.customerName || !payload.customerPhone) {
       setError('missingBookingFields');
@@ -616,11 +616,16 @@ function NewBookingForm({ T, lang, form, setForm, services, categories, saving, 
         </div>
         {selectedService?.is_hourly && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.hoursLabel}</label>
-            <select className="field-input" value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value })}>
-              {HOUR_CHOICES.map((h) => (
-                <option key={h} value={h}>
-                  {h} {T.hourUnit} · {formatPrice(selectedService.price_amd * h, lang)}
+            <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.bookingLengthLabel}</label>
+            <select
+              className="field-input"
+              value={form.durationMinutes}
+              onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })}
+            >
+              {DURATION_CHOICES.map((m) => (
+                <option key={m} value={m}>
+                  {formatDuration(m, T.hourUnit, T.minUnit)} ·{' '}
+                  {formatPrice(Math.round((selectedService.price_amd * m) / 60), lang)}
                 </option>
               ))}
             </select>
