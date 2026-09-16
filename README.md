@@ -160,6 +160,11 @@ everything else to HTTPS, a `www` → apex redirect, and the real TLS vhost.
 - Renewal: the packaged `certbot.timer` runs twice daily;
   `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` reloads the container after
   a successful renewal. Verify the whole path with `sudo certbot renew --dry-run`.
+- `conf.d/00-default.conf` is the catch-all `default_server` for both ports: anything
+  whose `Host` matches no `server_name` — the bare IP, stale hostnames, scanners —
+  gets `444` (connection closed, no response) instead of the guest app. The ACME
+  challenge is unaffected, since renewals are requested for the real domain and so
+  match the named vhost.
 
 To move to a different domain later, repeat those steps with the new name — the
 frontends need no rebuild, since nothing in the built code references the domain.

@@ -499,3 +499,17 @@ clean-up work earlier the same day.
   unknown Host gets the guest app over plain HTTP. Harmless, but it is dead config.
 - **No code changed.** Nothing in the frontends or backend ever referenced the domain
   (`VITE_API_URL=/api` is relative), which is exactly what the Step 8 notes predicted.
+
+### Follow-up — dead `mariamik.info` vhost removed
+- Deleted `/opt/nginx-setup/conf.d/mariamik-http.info.conf` (backed up on the VM as
+  `/root/mariamik-http.info.conf.removed-<date>`).
+- It had been nginx's default server, so removing it would have made the
+  `mariambeauty.skin` HTTP block the default and left bare-IP requests redirecting to
+  `https://158.101.169.222/` — a guaranteed certificate mismatch. Added
+  `conf.d/00-default.conf` instead: a `default_server` on 80 and 443 that returns
+  `444` for any unmatched `Host`. The 443 half still needs a certificate to finish the
+  handshake before closing, so it borrows the `mariambeauty.skin` one; the name simply
+  won't match, which is the point.
+- Verified: the domain, `/admin/`, `/api/health` and both redirects unchanged; bare IP
+  and `Host: mariamik.info` now get nothing; the ACME challenge path still returns 200
+  over the real domain, so renewals are unaffected.
