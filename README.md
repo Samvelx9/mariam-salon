@@ -111,9 +111,12 @@ reverse-proxies `/api/` to the backend container. Both frontends are built with
 + new DNS + a new TLS cert — no frontend rebuild, since nothing in the built code
 references the domain.**
 
-The current live domain, `mariamik.info`, is a **placeholder** — DNS already points
-it at the VM, so it's live and fully functional, but it is not necessarily the final
-domain. TLS hasn't been enabled yet for the same reason (see below).
+The live domain is **`mariambeauty.skin`**, registered via GoDaddy and served over
+HTTPS with a Let's Encrypt certificate that renews automatically. `www` redirects to
+the apex, and HTTP redirects to HTTPS.
+
+(An earlier `mariamik.info` in these docs was never a registered domain — it was only
+an `/etc/hosts` entry on a dev machine, so it never resolved for anyone else.)
 
 ### Redeploying after a code change
 
@@ -143,16 +146,23 @@ Nothing sensitive lives in this repo. On the VM:
 To rotate any of these, edit the relevant `.env` on the VM and restart the affected
 container (`docker compose restart` in `/opt/postgres` or `/opt/app`).
 
-### Enabling TLS once the final domain is chosen
+### TLS (already set up)
 
-1. Point the domain's DNS `A`/`AAAA` records at the VM's public IP.
-2. Get a cert (Let's Encrypt via `certbot`, standalone mode — briefly stops nginx to
-   bind port 80, so pick a quiet moment) and drop `fullchain.pem`/`privkey.pem` into
-   `/opt/nginx-setup/ssl/` as `<domain>.crt` / `<domain>.key`.
-3. Update `server_name` in `/opt/nginx-setup/conf.d/mariamik-http.info.conf` to the
-   new domain, add the HTTPS `server` block (a template already exists commented out
-   in that file) and an HTTP→HTTPS redirect.
-4. `docker exec nginx nginx -t` to validate, then `nginx -s reload` (zero downtime).
+`mariambeauty.skin` serves HTTPS from `/opt/nginx-setup/conf.d/mariambeauty.skin.conf`:
+an HTTP block that keeps `/.well-known/acme-challenge/` reachable and redirects
+everything else to HTTPS, a `www` → apex redirect, and the real TLS vhost.
+
+- Cert: `/etc/letsencrypt/live/mariambeauty.skin/` (apex + `www`), obtained with
+  `certbot certonly --webroot -w /opt/nginx-setup/www`. Webroot, not standalone, so
+  issuing and renewing never stop nginx.
+- The nginx container mounts `/etc/letsencrypt:ro` (see
+  `/opt/nginx-setup/docker-compose.yml`).
+- Renewal: the packaged `certbot.timer` runs twice daily;
+  `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` reloads the container after
+  a successful renewal. Verify the whole path with `sudo certbot renew --dry-run`.
+
+To move to a different domain later, repeat those steps with the new name — the
+frontends need no rebuild, since nothing in the built code references the domain.
 
 No backend, frontend, or database changes are needed for this — confirmed when this
 was scoped in Step 8, since none of the internal service-to-service calls (backend

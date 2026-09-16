@@ -16,9 +16,9 @@ ssh oracle-server 'bash /opt/app/deploy.sh'
 Then verify against the real site, not just locally:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' http://mariamik.info/
-curl -s -o /dev/null -w '%{http_code}\n' http://mariamik.info/admin/
-curl -s http://mariamik.info/api/health
+curl -s -o /dev/null -w '%{http_code}\n' https://mariambeauty.skin/
+curl -s -o /dev/null -w '%{http_code}\n' https://mariambeauty.skin/admin/
+curl -s https://mariambeauty.skin/api/health
 ssh oracle-server 'sudo git -C /opt/app/repo rev-parse HEAD'   # must equal the pushed commit
 ```
 

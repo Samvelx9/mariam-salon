@@ -460,3 +460,42 @@ clean-up work earlier the same day.
   the `booking_status` enum, so every create 500'd until the cast was added.
   Worth remembering: a dry run on real data does not exercise the code path, and
   walking the actual flow in the browser is what caught it.
+
+## Real domain + HTTPS — `mariambeauty.skin` ✅
+- **Correction to the Step 8 notes above**: `mariamik.info` was never a registered
+  domain and its DNS never "pointed at the VM" — it was only an `/etc/hosts` entry on
+  one dev machine, so it resolved for nobody else. The `curl` checks recorded against
+  it were really hitting the VM by IP. Those entries are left as written; this is the
+  correction.
+- **Domain registered**: `mariambeauty.skin` (GoDaddy, $0.99 first year, renews
+  2027-09-17 at $25.99). `.skin` was the cheapest ending that both reads as the job
+  and renews under $26 — the $0.01 `.com` offers were all 3-year prepay.
+- **GoDaddy forwarding removed.** It had been set up as a 301 to `http://158.101.169.222`,
+  which meant the A records pointed at GoDaddy's AWS forwarders and visitors ended up
+  with the bare IP in the address bar — and no way to serve TLS for the name. Replaced
+  with a plain `A @ → 158.101.169.222` (600s TTL); `CNAME www → mariambeauty.skin.`
+  was already there and left alone.
+- **nginx**: new `/opt/nginx-setup/conf.d/mariambeauty.skin.conf` — HTTP block that
+  keeps `/.well-known/acme-challenge/` served (`location ^~`, so it beats both the
+  redirect and the SPA fallback) and 301s everything else to HTTPS; a `www` → apex
+  redirect; and the TLS vhost carrying the same `/api/`, `/admin/` and SPA routing as
+  the old placeholder block. TLSv1.2+1.3, HSTS, `nosniff`, `SAMEORIGIN`,
+  `strict-origin-when-cross-origin`.
+- **Certificate**: Let's Encrypt, apex + `www`, via
+  `certbot certonly --webroot -w /opt/nginx-setup/www`. Webroot rather than standalone
+  (which README used to suggest) so neither issuance nor renewal ever stops nginx.
+- **Auto-renewal**: packaged `certbot.timer` (enabled, twice daily) plus
+  `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh`, which reloads the nginx
+  container after a renewal — the container mounts `/etc/letsencrypt:ro`, added as a
+  volume in `/opt/nginx-setup/docker-compose.yml`. `certbot renew --dry-run` passes
+  and the hook was run by hand to confirm it reloads.
+- **Verified**: `https://mariambeauty.skin/` 200 with a valid chain
+  (`ssl_verify_result=0`, HTTP/2), `http://` and `https://www.` both land on the apex,
+  `/api/health` returns `{"status":"ok","db":"connected"}`, `/admin/` serves the login.
+  Walked the guest flow in Chrome — the landing page and the zone list for
+  "Депиляция воском" both render, console clean.
+- **Still an IP, not a name, inside the box**: the old `mariamik-http.info.conf` block
+  is still present and still the default server, so a request to the bare IP or an
+  unknown Host gets the guest app over plain HTTP. Harmless, but it is dead config.
+- **No code changed.** Nothing in the frontends or backend ever referenced the domain
+  (`VITE_API_URL=/api` is relative), which is exactly what the Step 8 notes predicted.

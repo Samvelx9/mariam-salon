@@ -9,7 +9,7 @@ prompt text behind each step below.
   from outside the VM (e.g. to run migrations from this sandbox) needs an SSH tunnel,
   or migrations get run directly on the VM.
 - ~~Final production domain~~ → still open, but no longer blocking: the app is
-  **live now** on the placeholder `mariamik.info` (Step 8). Swapping to a final
+  **live now** at `https://mariambeauty.skin` (Step 8). Swapping to a different
   domain later is purely nginx + DNS + a new TLS cert — no rebuild, since the
   frontends only ever call a relative `/api` path. See README "Deployment".
 
@@ -22,16 +22,16 @@ prompt text behind each step below.
       against the real backend, two full scripted flows, zero console errors)
 - [x] ~~Step 7 — Admin dashboard frontend~~ (done, verified live against the real
       backend, zero console errors)
-- [x] ~~Step 8 — Deployment~~ (done — live at http://mariamik.info/ and
-      http://mariamik.info/admin/, verified end-to-end against the public domain in
+- [x] ~~Step 8 — Deployment~~ (done — live at https://mariambeauty.skin/ and
+      https://mariambeauty.skin/admin/, verified end-to-end against the public domain in
       a real browser. TLS deferred, see "Resolved decisions" above.)
 - [x] ~~Step 9 — QA pass~~ (done — 7/7 automated tests passing against the real
       database, plus a browser-based i18n pass closing the last language/app gaps.
       Found and fixed 3 bugs in the test script and 1 real app bug (Armenian date
       formatting). Pushed and redeployed live.)
 
-**All 9 roadmap steps are now complete.** The app is live at http://mariamik.info/
-(guest) and http://mariamik.info/admin/ (admin). See `DONE.md` for full history.
+**All 9 roadmap steps are now complete.** The app is live at https://mariambeauty.skin/
+(guest) and https://mariambeauty.skin/admin/ (admin). See `DONE.md` for full history.
 
 ## Landing page (added after the roadmap)
 - [x] Guest app now opens on a landing page (photo, intro, contacts, address, hours)
