@@ -305,17 +305,29 @@ guestRouter.post('/bookings/:id/reschedule', asyncHandler(async (req, res) => {
     return res.status(409).json({ error: 'slot_taken' });
   }
 
+  let moved;
   try {
     const { rows } = await pool.query(
       `UPDATE bookings SET start_time = $2, end_time = $3 WHERE id = $1
        RETURNING id, start_time, end_time, status`,
       [id, startTime, endTime]
     );
-    res.json(rows[0]);
+    moved = rows[0];
   } catch (err) {
     if (err.code === EXCLUSION_VIOLATION) {
       return res.status(409).json({ error: 'slot_taken' });
     }
     throw err;
   }
+
+  // `booking` still holds the pre-move row, which is where the old time comes
+  // from; the zones and duration are unchanged by a reschedule.
+  await notifyTelegram({
+    type: 'booking_rescheduled',
+    booking: { ...booking, start_time: moved.start_time, end_time: moved.end_time },
+    previousStartTime: booking.start_time,
+    durationMinutes: bookedMinutes(booking),
+  });
+
+  res.json(moved);
 }));

@@ -30,6 +30,22 @@ function formatMessage(event) {
     );
   }
 
+  // A guest moving their own visit is the one change Mariam doesn't make
+  // herself, so both the old and the new time matter — she may already have
+  // written the original one down.
+  if (event.type === 'booking_rescheduled') {
+    const before = formatYerevanDateTime(new Date(event.previousStartTime));
+    return (
+      `🔄 Перенос записи\n` +
+      `Услуга: ${serviceName}\n` +
+      `Было: ${before}\n` +
+      `Стало: ${when}\n` +
+      duration +
+      `Клиент: ${booking.customer_name}\n` +
+      `Телефон: ${booking.customer_phone}`
+    );
+  }
+
   if (event.type === 'booking_cancelled') {
     return (
       `❌ Отмена записи\n` +
