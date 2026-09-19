@@ -62,6 +62,7 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   const [view, setView] = useState('month'); // 'month' | 'year'
   const [cursor, setCursor] = useState(() => todayStr().slice(0, 7) + '-01');
   const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [selectedMonth, setSelectedMonth] = useState(() => Number(todayStr().slice(5, 7)));
   const [statusFilter, setStatusFilter] = useState('');
   const [bookings, setBookings] = useState([]);
   const [services, setServices] = useState([]);
@@ -143,8 +144,14 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   }
   const sortByTime = (rows) => [...rows].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 
-  // What the delete controls act on: the clean-up list, or the open day.
-  const listed = cleanupView ? sortByTime(bookings) : sortByTime(byDate.get(selectedDate) || []);
+  // What the list under the grid — and the delete controls with it — acts on:
+  // the clean-up list, the open month in year view, or the open day.
+  const monthPrefix = `${year}-${pad(selectedMonth)}-`;
+  const listed = cleanupView
+    ? sortByTime(bookings)
+    : view === 'year'
+      ? sortByTime(bookings.filter((b) => dateKeyOf(b).startsWith(monthPrefix)))
+      : sortByTime(byDate.get(selectedDate) || []);
   const cancelledListed = listed.filter((b) => b.status === 'cancelled');
   const allCancelledSelected = cancelledListed.length > 0 && cancelledListed.every((b) => selected.has(b.id));
 
@@ -260,6 +267,9 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   function goToMonth(y, m) {
     setCursor(monthStart(y, m));
     setConfirming(false);
+    // The list under the year grid belongs to the open month, and the cursor
+    // follows it, so switching to month view lands on the month just picked.
+    setSelectedMonth(m);
     // The day list under the grid belongs to the month on screen, so moving
     // month moves the open day with it — to today when today is in that month,
     // otherwise to the 1st.
@@ -269,7 +279,10 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
 
   function stepCursor(delta) {
     if (view === 'year') {
-      goToMonth(year + delta, month);
+      // A new year opens on today's month when today is in it, else January.
+      const y = year + delta;
+      const today = todayStr();
+      goToMonth(y, today.slice(0, 4) === String(y) ? Number(today.slice(5, 7)) : 1);
       return;
     }
     const next = month + delta;
@@ -304,8 +317,7 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
               <button
                 className="btn-outline"
                 onClick={() => {
-                  setCursor(todayStr().slice(0, 7) + '-01');
-                  setSelectedDate(todayStr());
+                  goToMonth(Number(todayStr().slice(0, 4)), Number(todayStr().slice(5, 7)));
                   setView('month');
                 }}
               >
@@ -364,10 +376,8 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
                 T={T}
                 lang={lang}
                 bookings={bookings}
-                onPickMonth={(m) => {
-                  goToMonth(year, m);
-                  setView('month');
-                }}
+                selectedMonth={selectedMonth}
+                onPickMonth={(m) => goToMonth(year, m)}
               />
             ) : (
               <MonthGrid
@@ -384,89 +394,85 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
               />
             ))}
 
-          {(cleanupView || view === 'month') && (
-            <>
-              {cancelledListed.length > 0 && (
-                <div
-                  className="card"
-                  style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '10px 14px' }}
+          {cancelledListed.length > 0 && (
+            <div
+              className="card"
+              style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '10px 14px' }}
+            >
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <input type="checkbox" checked={allCancelledSelected} onChange={toggleAllCancelled} />
+                {T.selectAllCancelled}
+              </label>
+              <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{T.onlyCancelledDeletable}</span>
+              {confirming ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, color: 'var(--terracotta)' }}>{T.confirmDeleteBookings}</span>
+                  <button className="btn-danger-outline" onClick={deleteSelected} disabled={deleting}>
+                    {T.confirmDeleteBtn} ({selected.size})
+                  </button>
+                  <button className="btn-outline" onClick={() => setConfirming(false)} disabled={deleting}>
+                    {T.cancelBtn}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="btn-danger-outline"
+                  style={{ marginLeft: 'auto' }}
+                  onClick={() => setConfirming(true)}
+                  disabled={selected.size === 0}
                 >
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                    <input type="checkbox" checked={allCancelledSelected} onChange={toggleAllCancelled} />
-                    {T.selectAllCancelled}
-                  </label>
-                  <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{T.onlyCancelledDeletable}</span>
-                  {confirming ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 13, color: 'var(--terracotta)' }}>{T.confirmDeleteBookings}</span>
-                      <button className="btn-danger-outline" onClick={deleteSelected} disabled={deleting}>
-                        {T.confirmDeleteBtn} ({selected.size})
-                      </button>
-                      <button className="btn-outline" onClick={() => setConfirming(false)} disabled={deleting}>
-                        {T.cancelBtn}
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      className="btn-danger-outline"
-                      style={{ marginLeft: 'auto' }}
-                      onClick={() => setConfirming(true)}
-                      disabled={selected.size === 0}
-                    >
-                      {T.deleteSelectedBtn} ({selected.size})
-                    </button>
+                  {T.deleteSelectedBtn} ({selected.size})
+                </button>
+              )}
+            </div>
+          )}
+
+          {!cleanupView && (
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              {view === 'year' ? `${MONTH_FULL[lang][selectedMonth - 1]} ${year}` : formatDate(parseDay(selectedDate), lang)}
+            </h3>
+          )}
+
+          {listed.length === 0 ? (
+            <p style={{ color: 'var(--muted)', fontSize: 13.5 }}>
+              {cleanupView ? T.noBookingsThisPeriod : view === 'year' ? T.noBookingsThisMonth : T.noBookingsThisDay}
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {listed.map((b) => (
+                <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <BookingRow
+                    T={T}
+                    lang={lang}
+                    booking={b}
+                    showDate={cleanupView || view === 'year'}
+                    selected={selected.has(b.id)}
+                    isEditing={editingBookingId === b.id}
+                    onToggle={() => toggleOne(b.id)}
+                    onEdit={() => openEditBooking(b)}
+                    onChangeStatus={(status) => changeStatus(b.id, status)}
+                  />
+                  {editingBookingId === b.id && (
+                    <BookingForm
+                      T={T}
+                      lang={lang}
+                      title={T.editBookingTitle}
+                      form={bookingForm}
+                      setForm={setBookingForm}
+                      services={services}
+                      categories={categories}
+                      saving={savingBooking}
+                      onSave={saveBooking}
+                      onCancel={() => {
+                        setEditingBookingId(null);
+                        setError(null);
+                      }}
+                      nested
+                    />
                   )}
                 </div>
-              )}
-
-              {!cleanupView && selectedDate && (
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {formatDate(parseDay(selectedDate), lang)}
-                </h3>
-              )}
-
-              {listed.length === 0 ? (
-                <p style={{ color: 'var(--muted)', fontSize: 13.5 }}>
-                  {cleanupView ? T.noBookingsThisPeriod : T.noBookingsThisDay}
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {listed.map((b) => (
-                    <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <BookingRow
-                        T={T}
-                        lang={lang}
-                        booking={b}
-                        showDate={cleanupView}
-                        selected={selected.has(b.id)}
-                        isEditing={editingBookingId === b.id}
-                        onToggle={() => toggleOne(b.id)}
-                        onEdit={() => openEditBooking(b)}
-                        onChangeStatus={(status) => changeStatus(b.id, status)}
-                      />
-                      {editingBookingId === b.id && (
-                        <BookingForm
-                          T={T}
-                          lang={lang}
-                          title={T.editBookingTitle}
-                          form={bookingForm}
-                          setForm={setBookingForm}
-                          services={services}
-                          categories={categories}
-                          saving={savingBooking}
-                          onSave={saveBooking}
-                          onCancel={() => {
-                            setEditingBookingId(null);
-                            setError(null);
-                          }}
-                          nested
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+              ))}
+            </div>
           )}
         </>
       )}
@@ -550,10 +556,11 @@ function MonthGrid({ T, lang, year, month, byDate, selectedDate, onPickDay }) {
   );
 }
 
-// The year at a glance: one card per month with what it earned. Income counts
-// completed bookings only — the same rule the dashboard's figures use, so the
-// two never disagree.
-function YearGrid({ T, lang, bookings, onPickMonth }) {
+// The year at a glance: one card per month with what it earned, the open month
+// highlighted. Picking a month fills the list underneath, the way picking a day
+// does in month view. Income counts completed bookings only — the same rule the
+// dashboard's figures use, so the two never disagree.
+function YearGrid({ T, lang, bookings, selectedMonth, onPickMonth }) {
   const stats = Array.from({ length: 12 }, () => ({ count: 0, completed: 0, income: 0 }));
   for (const b of bookings) {
     const { dateObj } = splitYerevanDateTime(b.start_time);
@@ -567,24 +574,37 @@ function YearGrid({ T, lang, bookings, onPickMonth }) {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
-      {stats.map((s, i) => (
-        <button
-          key={i}
-          className="card"
-          onClick={() => onPickMonth(i + 1)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, textAlign: 'left', cursor: 'pointer' }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <span style={{ fontFamily: "'Newsreader',serif", fontSize: 16 }}>{MONTH_FULL[lang][i]}</span>
-            <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-              {s.count} {pluralize(s.count, lang, 'bookings')} · {T.completedCountLabel} {s.completed}
+      {stats.map((s, i) => {
+        const isSelected = i + 1 === selectedMonth;
+        return (
+          <button
+            key={i}
+            className="card"
+            onClick={() => onPickMonth(i + 1)}
+            aria-pressed={isSelected}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              textAlign: 'left',
+              cursor: 'pointer',
+              border: isSelected ? '1.5px solid var(--sage)' : '1px solid var(--line)',
+              background: isSelected ? 'var(--sage-light)' : 'var(--white)',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontFamily: "'Newsreader',serif", fontSize: 16 }}>{MONTH_FULL[lang][i]}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                {s.count} {pluralize(s.count, lang, 'bookings')} · {T.completedCountLabel} {s.completed}
+              </span>
+            </div>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: s.income > 0 ? 'var(--sage)' : 'var(--muted)' }}>
+              {formatPrice(s.income, lang)}
             </span>
-          </div>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: s.income > 0 ? 'var(--sage)' : 'var(--muted)' }}>
-            {formatPrice(s.income, lang)}
-          </span>
-        </button>
-      ))}
+          </button>
+        );
+      })}
     </div>
   );
 }
