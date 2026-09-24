@@ -45,6 +45,11 @@ Two layers of content sit behind that page, both editable in the admin dashboard
   belongs to exactly one treatment and acts as a *zone* within it (bikini, full leg,
   upper lip…), so a treatment's services are its price list. A treatment with no
   services is hidden from the landing page rather than shown as a dead end.
+  Waxing and sugaring carry the same twenty-two rows, prices and durations
+  straight off Mariam's printed sheet (see the `full-price-list` migration); the
+  sheet's package deals aren't listed separately, because a guest picks several
+  zones in one visit and every package but "Полная депиляция тела" is the exact
+  sum of its zones. Electrolysis is priced by the hour instead.
 
 The photo is stored in Postgres (`salon_profile.photo_data`, at most 4 MB, JPEG/PNG/
 WebP) rather than on disk — the API container has no persistent volume, and it's one
