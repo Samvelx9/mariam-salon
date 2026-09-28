@@ -337,6 +337,18 @@ guestRouter.post('/bookings/:id/reschedule', asyncHandler(async (req, res) => {
   const startTime = localToUtc(date, time);
   const endTime = addMinutes(startTime, bookedMinutes(booking));
 
+  // Already at the requested time: a repeat of a move whose answer never
+  // reached the guest. It gets the same answer, without a second "Перенос"
+  // message to Mariam saying the visit moved from a time to that same time.
+  if (new Date(booking.start_time).getTime() === startTime.getTime()) {
+    return res.json({
+      id: booking.id,
+      start_time: booking.start_time,
+      end_time: booking.end_time,
+      status: booking.status,
+    });
+  }
+
   if (startTime < addMinutes(new Date(), CUTOFF_MINUTES)) {
     return res.status(400).json({ error: 'too_soon', cutoffMinutes: CUTOFF_MINUTES });
   }
