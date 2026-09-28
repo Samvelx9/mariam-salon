@@ -87,6 +87,8 @@ export function webhookSecret(token) {
   return createHash('sha256').update(`webhook:${token}`).digest('hex');
 }
 
+const TELEGRAM_TIMEOUT_MS = 10_000;
+
 // One Bot API call. Returns the parsed result, or null (logged) on any failure —
 // Telegram being down must never break whatever called it.
 export async function callTelegram(method, body) {
@@ -98,6 +100,9 @@ export async function callTelegram(method, body) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      // A Telegram that hangs rather than failing would otherwise hold whatever
+      // is waiting on this — the minute check, a button's reply — indefinitely.
+      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
     });
     if (!res.ok) {
       console.error(`Telegram ${method} failed:`, res.status, await res.text());
@@ -111,15 +116,20 @@ export async function callTelegram(method, body) {
 }
 
 // Best-effort: a Telegram outage or bad config must never break the booking
-// flow itself, so failures are logged, not thrown.
+// flow itself, so failures are logged, never thrown — which is also what lets
+// the guest routes call this after answering, without awaiting it.
 export async function notifyTelegram(event) {
-  const config = telegramConfig();
-  if (!config) return;
+  try {
+    const config = telegramConfig();
+    if (!config) return;
 
-  const text = formatMessage(event);
-  if (!text) return;
+    const text = formatMessage(event);
+    if (!text) return;
 
-  await callTelegram('sendMessage', { chat_id: config.chatId, text });
+    await callTelegram('sendMessage', { chat_id: config.chatId, text });
+  } catch (err) {
+    console.error('Telegram notification failed:', err.message);
+  }
 }
 
 // The buttons' callback data is "<answer>:<booking id>"; routes/telegram.js

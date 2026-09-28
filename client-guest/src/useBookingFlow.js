@@ -3,6 +3,11 @@ import { api, ApiError } from './api.js';
 import { DEFAULT_LANG, STRINGS } from './i18n.js';
 import { MIN_BOOKING_MINUTES, MAX_BOOKING_MINUTES } from 'salon-shared/booking';
 
+function newRequestKey() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+}
+
 const INITIAL_FLOW_STATE = {
   step: 'landing',
   selectedCategoryId: null,
@@ -114,6 +119,7 @@ export function useBookingFlow() {
   // What the calendar's current slot list was built for, so it is refetched
   // when the length changes and not on every unrelated re-render.
   const loadedForRef = useRef(null);
+  const requestKeyRef = useRef(null);
 
   // The chosen length changes which start times leave enough room, so it is
   // part of the slot request rather than something applied afterwards.
@@ -219,18 +225,28 @@ export function useBookingFlow() {
     const day = flow.slotsData?.days[flow.selectedDayIndex];
     if (basket.zones.length === 0 || !day || !flow.selectedSlot) return;
 
+    const payload = {
+      date: day.date,
+      time: flow.selectedSlot,
+      customerName: flow.name,
+      customerPhone: flow.phone,
+      items: basket.zones.map((z) => ({
+        serviceId: z.service.id,
+        ...(z.service.is_hourly ? { durationMinutes: z.minutes } : {}),
+      })),
+    };
+    // Pressing confirm again with the same choices sends the same key, so if the
+    // first attempt was saved but its answer got lost, the server hands back
+    // that booking rather than refusing the slot it now occupies. Any change to
+    // the choices is a different booking, with a new key.
+    const signature = JSON.stringify(payload);
+    if (requestKeyRef.current?.signature !== signature) {
+      requestKeyRef.current = { signature, key: newRequestKey() };
+    }
+
     patch({ busy: true, bannerErrorKey: null });
     try {
-      const booking = await api.createBooking({
-        date: day.date,
-        time: flow.selectedSlot,
-        customerName: flow.name,
-        customerPhone: flow.phone,
-        items: basket.zones.map((z) => ({
-          serviceId: z.service.id,
-          ...(z.service.is_hourly ? { durationMinutes: z.minutes } : {}),
-        })),
-      });
+      const booking = await api.createBooking({ ...payload, requestKey: requestKeyRef.current.key });
       patch({
         busy: false,
         step: 'confirmation',

@@ -113,15 +113,15 @@ export async function resolveItems(rawItems, { requireActive = true } = {}) {
 // whole thing.
 export async function insertBookingWithItems(
   client,
-  { startTime, endTime, customerName, customerPhone, status, totalPrice, items }
+  { startTime, endTime, customerName, customerPhone, status, totalPrice, items, requestKey }
 ) {
   const { rows } = await client.query(
     // The cast is required: without it Postgres types the parameter as text and
     // refuses to assign it to the booking_status enum column.
-    `INSERT INTO bookings (start_time, end_time, customer_name, customer_phone, status, price_at_booking)
-     VALUES ($1, $2, $3, $4, COALESCE($5::booking_status, 'confirmed'), $6)
+    `INSERT INTO bookings (start_time, end_time, customer_name, customer_phone, status, price_at_booking, request_key)
+     VALUES ($1, $2, $3, $4, COALESCE($5::booking_status, 'confirmed'), $6, $7)
      RETURNING id`,
-    [startTime, endTime, customerName, customerPhone, status ?? null, totalPrice]
+    [startTime, endTime, customerName, customerPhone, status ?? null, totalPrice, requestKey ?? null]
   );
   const bookingId = rows[0].id;
   await replaceItems(client, bookingId, items);

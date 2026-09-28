@@ -22,6 +22,7 @@ import { getProfileRow, shapeProfile } from '../services/profile.js';
 export const guestRouter = Router();
 
 const EXCLUSION_VIOLATION = '23P01';
+const UNIQUE_VIOLATION = '23505';
 
 // The length a booking actually runs for, which for an hourly one is what the
 // client chose and for a multi-zone one is the whole visit — never the sum of
@@ -162,18 +163,53 @@ guestRouter.get('/slots', asyncHandler(async (req, res) => {
   res.json({ days, durationMinutes });
 }));
 
+function createdBookingBody(booking) {
+  return {
+    id: booking.id,
+    startTime: booking.start_time,
+    endTime: booking.end_time,
+    status: booking.status,
+    customerName: booking.customer_name,
+    customerPhone: booking.customer_phone,
+    priceAtBooking: booking.price_at_booking,
+    items: booking.items,
+  };
+}
+
+async function bookingForRequestKey(requestKey) {
+  const { rows } = await pool.query('SELECT id FROM bookings WHERE request_key = $1', [requestKey]);
+  return rows[0] ? getBookingWithItems(rows[0].id) : null;
+}
+
+const REQUEST_KEY_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
+
 // POST /api/bookings — create a booking for an open slot
+//
+// `requestKey` is a random id the guest page makes for one set of choices. If
+// the booking was saved but the answer never reached the guest (a dropped
+// connection), pressing confirm again would otherwise be refused as
+// `slot_taken` — by their own booking. With the key, the repeat gets back the
+// booking that was already made instead.
 guestRouter.post('/bookings', asyncHandler(async (req, res) => {
   const date = req.body?.date;
   const time = req.body?.time;
   const customerName = cleanString(req.body?.customerName, 100);
   const customerPhone = cleanString(req.body?.customerPhone, 30);
+  const requestKey = req.body?.requestKey ?? null;
 
   if (!isValidDate(date) || !isValidTime(time)) {
     return res.status(400).json({ error: 'invalid_request' });
   }
   if (!customerName || !customerPhone) {
     return res.status(400).json({ error: 'missing_customer_details' });
+  }
+  if (requestKey !== null && !(typeof requestKey === 'string' && REQUEST_KEY_PATTERN.test(requestKey))) {
+    return res.status(400).json({ error: 'invalid_request' });
+  }
+
+  if (requestKey) {
+    const existing = await bookingForRequestKey(requestKey);
+    if (existing) return res.status(201).json(createdBookingBody(existing));
   }
 
   // One zone or several — a single-zone booking is just a basket of one.
@@ -191,49 +227,54 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'too_soon', cutoffMinutes: CUTOFF_MINUTES });
   }
 
-  if (!(await isSlotWithinAvailability(date, startTime, endTime))) {
+  // A copy of this same request that got in first is what makes the slot look
+  // taken, so the key is checked again before refusing.
+  const slotTaken = async () => {
+    const existing = requestKey && (await bookingForRequestKey(requestKey));
+    if (existing) return res.status(201).json(createdBookingBody(existing));
     return res.status(409).json({ error: 'slot_taken' });
+  };
+
+  if (!(await isSlotWithinAvailability(date, startTime, endTime))) {
+    return slotTaken();
   }
 
   const client = await pool.connect();
+  let bookingId;
   try {
     await client.query('BEGIN');
-    const bookingId = await insertBookingWithItems(client, {
+    bookingId = await insertBookingWithItems(client, {
       startTime,
       endTime,
       customerName,
       customerPhone,
       totalPrice: resolved.totalPrice,
       items: resolved.items,
+      requestKey,
     });
     await client.query('COMMIT');
-
-    const booking = await getBookingWithItems(bookingId);
-    await notifyTelegram({
-      type: 'booking_created',
-      booking,
-      durationMinutes: resolved.totalMinutes,
-    });
-
-    res.status(201).json({
-      id: booking.id,
-      startTime: booking.start_time,
-      endTime: booking.end_time,
-      status: booking.status,
-      customerName,
-      customerPhone,
-      priceAtBooking: booking.price_at_booking,
-      items: booking.items,
-    });
   } catch (err) {
     await client.query('ROLLBACK');
-    if (err.code === EXCLUSION_VIOLATION) {
-      return res.status(409).json({ error: 'slot_taken' });
+    // Two copies of the same request arriving together: whichever lost trips
+    // the key's uniqueness or the overlap rule, and answers with the winner's
+    // booking.
+    if (err.code === UNIQUE_VIOLATION || err.code === EXCLUSION_VIOLATION) {
+      return slotTaken();
     }
     throw err;
   } finally {
     client.release();
   }
+
+  const booking = await getBookingWithItems(bookingId);
+  res.status(201).json(createdBookingBody(booking));
+
+  // After answering, so the guest's confirmation never waits on Telegram.
+  notifyTelegram({
+    type: 'booking_created',
+    booking,
+    durationMinutes: resolved.totalMinutes,
+  });
 }));
 
 // POST /api/bookings/lookup — all upcoming bookings for a phone number
@@ -271,9 +312,8 @@ guestRouter.post('/bookings/:id/cancel', asyncHandler(async (req, res) => {
   }
 
   await pool.query(`UPDATE bookings SET status = 'cancelled' WHERE id = $1`, [id]);
-  await notifyTelegram({ type: 'booking_cancelled', booking });
-
   res.json({ id, status: 'cancelled' });
+  notifyTelegram({ type: 'booking_cancelled', booking });
 }));
 
 // POST /api/bookings/:id/reschedule — same cutoff + slot rules as a new booking
@@ -320,14 +360,14 @@ guestRouter.post('/bookings/:id/reschedule', asyncHandler(async (req, res) => {
     throw err;
   }
 
+  res.json(moved);
+
   // `booking` still holds the pre-move row, which is where the old time comes
   // from; the zones and duration are unchanged by a reschedule.
-  await notifyTelegram({
+  notifyTelegram({
     type: 'booking_rescheduled',
     booking: { ...booking, start_time: moved.start_time, end_time: moved.end_time },
     previousStartTime: booking.start_time,
     durationMinutes: bookedMinutes(booking),
   });
-
-  res.json(moved);
 }));
