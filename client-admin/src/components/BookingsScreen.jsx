@@ -3,6 +3,7 @@ import { api, ApiError } from '../api.js';
 import { formatPrice, formatDate, pluralize, WEEKDAY_SHORT, MONTH_FULL } from '../i18n.js';
 import { splitYerevanDateTime } from 'salon-shared/time';
 import { DURATION_CHOICES, MIN_BOOKING_MINUTES, formatDuration } from 'salon-shared/booking';
+import { isDateStr, isMonthStr, routeParam, setRouteParams } from '../route.js';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -59,11 +60,15 @@ const EMPTY_BOOKING_FORM = {
 };
 
 export default function BookingsScreen({ T, lang, onAuthError }) {
-  const [view, setView] = useState('month'); // 'month' | 'year'
-  const [cursor, setCursor] = useState(() => todayStr().slice(0, 7) + '-01');
-  const [selectedDate, setSelectedDate] = useState(todayStr());
-  const [selectedMonth, setSelectedMonth] = useState(() => Number(todayStr().slice(5, 7)));
-  const [statusFilter, setStatusFilter] = useState('');
+  // The calendar position starts from the URL, so a reload reopens the same
+  // month, day and filter — see route.js.
+  const [view, setView] = useState(() => routeParam('view', (v) => v === 'year', 'month')); // 'month' | 'year'
+  const [cursor, setCursor] = useState(() => routeParam('month', isMonthStr, todayStr().slice(0, 7)) + '-01');
+  const [selectedDate, setSelectedDate] = useState(() =>
+    routeParam('day', (d) => isDateStr(d) && d.slice(0, 7) === cursor.slice(0, 7), todayStr())
+  );
+  const [selectedMonth, setSelectedMonth] = useState(() => Number(cursor.slice(5, 7)));
+  const [statusFilter, setStatusFilter] = useState(() => routeParam('status', (v) => v in STATUS_KEY, ''));
   const [bookings, setBookings] = useState([]);
   const [services, setServices] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -111,6 +116,16 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.from, range.to, statusFilter]);
+
+  useEffect(() => {
+    const today = todayStr();
+    setRouteParams({
+      view: view === 'year' ? 'year' : null,
+      month: cursor.slice(0, 7) === today.slice(0, 7) ? null : cursor.slice(0, 7),
+      day: selectedDate === today ? null : selectedDate,
+      status: statusFilter,
+    });
+  }, [view, cursor, selectedDate, statusFilter]);
 
   // The price list only matters for the "add booking" form, so it's fetched
   // once rather than on every month change.

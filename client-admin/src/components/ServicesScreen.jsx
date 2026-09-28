@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api.js';
 import { formatPrice, pluralize } from '../i18n.js';
+import { routeParam, setRouteParams } from '../route.js';
 
 const EMPTY_FORM = {
   nameEn: '',
@@ -22,7 +23,15 @@ export default function ServicesScreen({ T, lang, onAuthError }) {
   const [saving, setSaving] = useState(false);
   // Treatments start folded: with a dozen zones each, an unfolded list is a
   // wall of rows. Opening one is how you get at its price list.
-  const [openCategoryId, setOpenCategoryId] = useState(null);
+  // Which one is open is kept in the URL, so a reload leaves it open.
+  const [openCategoryId, setOpenCategoryId] = useState(() => {
+    const value = routeParam('treatment', (v) => v === 'none' || /^\d+$/.test(v), null);
+    return value === null || value === 'none' ? value : Number(value);
+  });
+
+  useEffect(() => {
+    setRouteParams({ treatment: openCategoryId });
+  }, [openCategoryId]);
 
   async function load() {
     setLoading(true);

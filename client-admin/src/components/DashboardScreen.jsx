@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { formatPrice, parseLocalDate, formatDate } from '../i18n.js';
+import { isDateStr, routeParam, setRouteParams } from '../route.js';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -16,8 +17,16 @@ function startOfMonth() {
 }
 
 export default function DashboardScreen({ T, lang, onAuthError }) {
-  const [from, setFrom] = useState(startOfMonth());
-  const [to, setTo] = useState(todayStr());
+  // The period starts from the URL so a reload keeps it — see route.js.
+  const [from, setFrom] = useState(() => routeParam('from', isDateStr, startOfMonth()));
+  const [to, setTo] = useState(() => routeParam('to', isDateStr, todayStr()));
+
+  useEffect(() => {
+    setRouteParams({
+      from: from === startOfMonth() ? null : from,
+      to: to === todayStr() ? null : to,
+    });
+  }, [from, to]);
   const [financials, setFinancials] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
