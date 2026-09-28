@@ -4,6 +4,9 @@ import cors from 'cors';
 import { pool } from './db.js';
 import { guestRouter } from './routes/guest.js';
 import { adminRouter } from './routes/admin.js';
+import { telegramRouter } from './routes/telegram.js';
+import { registerWebhook, telegramConfig } from './services/telegram.js';
+import { startCompletionPrompts } from './services/completionPrompts.js';
 
 const app = express();
 app.use(cors());
@@ -18,6 +21,7 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
+app.use('/api/telegram', telegramRouter);
 app.use('/api', guestRouter);
 app.use('/api/admin', adminRouter);
 
@@ -30,4 +34,14 @@ app.use((err, _req, res, _next) => {
 const port = process.env.PORT || 4000;
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
+
+  // The "did the visit happen?" questions need Telegram to be able to reach this
+  // server with Mariam's answers, so they only run where PUBLIC_URL says it can
+  // — the deployed backend, not a dev machine that happens to have the bot
+  // token in its .env.
+  const publicUrl = process.env.PUBLIC_URL;
+  if (publicUrl && telegramConfig()) {
+    registerWebhook(publicUrl);
+    startCompletionPrompts();
+  }
 });

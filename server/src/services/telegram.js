@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { formatYerevanDateTime } from '../lib/formatMessageTime.js';
 import { formatDuration } from '../lib/booking.js';
 
@@ -46,6 +47,19 @@ function formatMessage(event) {
     );
   }
 
+  // Sent once a visit's booked time has run out, with buttons for Mariam to say
+  // how it went — see services/completionPrompts.js and routes/telegram.js.
+  if (event.type === 'booking_ended') {
+    return (
+      `⏰ Процедура завершилась?\n` +
+      `Услуга: ${serviceName}\n` +
+      `Дата: ${when}\n` +
+      duration +
+      `Клиент: ${booking.customer_name}\n` +
+      `Телефон: ${booking.customer_phone}`
+    );
+  }
+
   if (event.type === 'booking_cancelled') {
     return (
       `❌ Отмена записи\n` +
@@ -60,30 +74,88 @@ function formatMessage(event) {
   return null;
 }
 
+export function telegramConfig() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  return token && chatId ? { token, chatId } : null;
+}
+
+// Telegram sends this back in a header on every webhook call, which is how the
+// webhook tells a real update from anyone else posting to the URL. Derived from
+// the bot token so there is no second secret to keep in `.env`.
+export function webhookSecret(token) {
+  return createHash('sha256').update(`webhook:${token}`).digest('hex');
+}
+
+// One Bot API call. Returns the parsed result, or null (logged) on any failure —
+// Telegram being down must never break whatever called it.
+export async function callTelegram(method, body) {
+  const config = telegramConfig();
+  if (!config) return null;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${config.token}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      console.error(`Telegram ${method} failed:`, res.status, await res.text());
+      return null;
+    }
+    return (await res.json()).result ?? true;
+  } catch (err) {
+    console.error(`Telegram ${method} failed:`, err.message);
+    return null;
+  }
+}
+
 // Best-effort: a Telegram outage or bad config must never break the booking
 // flow itself, so failures are logged, not thrown.
 export async function notifyTelegram(event) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (!token || !chatId) {
-    return;
-  }
+  const config = telegramConfig();
+  if (!config) return;
 
   const text = formatMessage(event);
   if (!text) return;
 
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
-    });
+  await callTelegram('sendMessage', { chat_id: config.chatId, text });
+}
 
-    if (!res.ok) {
-      console.error('Telegram notification failed:', res.status, await res.text());
-    }
-  } catch (err) {
-    console.error('Telegram notification failed:', err.message);
-  }
+// The buttons' callback data is "<answer>:<booking id>"; routes/telegram.js
+// reads it back.
+export const COMPLETION_ANSWERS = { done: 'completed', noshow: 'no_show' };
+
+// Returns whether the question actually went out, so the caller can try again
+// later if it didn't.
+export async function askIfCompleted(booking) {
+  const config = telegramConfig();
+  if (!config) return false;
+
+  const result = await callTelegram('sendMessage', {
+    chat_id: config.chatId,
+    text: formatMessage({ type: 'booking_ended', booking }),
+    reply_markup: {
+      inline_keyboard: [[
+        { text: '✅ Завершено', callback_data: `done:${booking.id}` },
+        { text: '🚫 Неявка', callback_data: `noshow:${booking.id}` },
+      ]],
+    },
+  });
+  return Boolean(result);
+}
+
+// Points Telegram at this server's webhook. Only button presses are asked for —
+// messages typed to the bot aren't something the app acts on.
+export async function registerWebhook(publicUrl) {
+  const config = telegramConfig();
+  if (!config) return;
+
+  const url = `${publicUrl.replace(/\/$/, '')}/api/telegram/webhook`;
+  const ok = await callTelegram('setWebhook', {
+    url,
+    secret_token: webhookSecret(config.token),
+    allowed_updates: ['callback_query'],
+  });
+  if (ok) console.log(`Telegram webhook set to ${url}`);
 }

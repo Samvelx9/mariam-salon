@@ -64,7 +64,7 @@ and `GET/POST/PATCH/DELETE /api/admin/categories`.
 
 ## Telegram notifications setup
 
-Mariam gets a Telegram message on every new booking and every cancellation. This is a
+Mariam gets a Telegram message on every new booking, reschedule and cancellation, and a question once each visit's time is up. This is a
 one-time setup on her side:
 
 1. **Create the bot.** In Telegram, open a chat with **@BotFather**, send `/newbot`,
@@ -91,6 +91,29 @@ one-time setup on her side:
 
 If either variable is unset, notifications are silently skipped (the booking flow
 itself is never blocked by a Telegram failure or missing config).
+
+### "Did the visit happen?" questions
+
+When a confirmed booking's time runs out (its end time — the sum of its zones),
+Mariam gets `⏰ Процедура завершилась?` with two buttons: **✅ Завершено** sets the
+booking to `completed`, **🚫 Неявка** to `no_show`. The message is then edited to
+show the result and the buttons go away. A tap only changes a booking that is still
+`confirmed`, so anything she already set in the admin panel wins. There is no
+reminder if she doesn't answer; the booking simply stays `confirmed`.
+
+How it works: the backend checks once a minute for ended, un-asked confirmed bookings
+from the last 24 hours (`bookings.completion_asked_at`, see
+`server/src/services/completionPrompts.js`), and Telegram delivers her button press
+to `POST /api/telegram/webhook` (`server/src/routes/telegram.js`), which checks
+Telegram's secret header (derived from the bot token) and her chat id.
+
+This only runs when `PUBLIC_URL` is set as well as the two variables above — on the
+VM it is `https://mariambeauty.skin`, set in `/opt/app/docker-compose.yml`. On start
+the backend registers the webhook with Telegram itself. Leave `PUBLIC_URL` unset on
+a dev machine, or it would ask Mariam about local test bookings. Note that while the
+webhook is registered, the `getUpdates` call in step 3 above returns an error; to
+look up a chat id again, call `deleteWebhook` first (the next backend restart
+registers it again).
 
 ## Deployment
 
