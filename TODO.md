@@ -134,3 +134,14 @@ those from Admin → Записи → Отменена afterwards (they all use 
    meantime, and the swap needs no code changes.
 3. The two smaller open items above (repeat-client tracking, full API endpoint
    list) — neither is blocking, both are optional future decisions.
+
+## Guest notifications (added 2026-09-30)
+- [x] **Phase 1** — "Add to calendar" (.ics) and opt-in Telegram reminders on the
+      guest confirmation screen; see README "Guest reminders".
+- [ ] **Mariam should read the guest messages** — the Armenian, Russian and English
+      wording in `server/src/services/guestNotifications.js` (`TEXT`) is a first
+      draft written for her, not by her.
+- [ ] **Phase 2, if needed** — after a month or so, check how many guests turned
+      Telegram on (`SELECT count(*) FILTER (WHERE guest_chat_id IS NOT NULL),
+      count(*) FROM bookings WHERE guest_token IS NOT NULL`). If it's low, or most
+      bookings come by phone, add WhatsApp Business (paid, Meta-approved templates).

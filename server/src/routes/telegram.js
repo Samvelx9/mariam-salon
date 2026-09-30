@@ -8,6 +8,7 @@ import {
   webhookSecret,
   COMPLETION_ANSWERS,
 } from '../services/telegram.js';
+import { handleGuestCallback, handleGuestMessage } from '../services/guestNotifications.js';
 
 export const telegramRouter = Router();
 
@@ -24,7 +25,17 @@ function hasValidSecret(req, token) {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-// Mariam's answer to "⏰ Процедура завершилась?". The status only moves while
+// Everything Telegram sends the bot arrives here. Three kinds of update matter:
+//
+// - a button on one of a guest's reminders (callback data "g:…") — see
+//   services/guestNotifications.js;
+// - a message to the bot, which is how a guest's "/start <token>" opt-in
+//   arrives — also guestNotifications.js. From Mariam's own chat only a
+//   "/start <token>" counts (she may well try the link herself); anything
+//   else she types would just get the "I can't pass this on" reply;
+// - Mariam's answer to "⏰ Процедура завершилась?", below.
+//
+// Mariam's answer to "⏰ Процедура завершилась?": the status only moves while
 // the booking is still `confirmed`: if she has already set it in the admin
 // panel, or the visit was cancelled, a late tap doesn't overwrite that. Either
 // way the buttons are replaced with what the booking now is, so the message
@@ -37,8 +48,21 @@ telegramRouter.post(
       return res.sendStatus(401);
     }
 
+    const incoming = req.body?.message;
+    if (incoming) {
+      const fromMariam = String(incoming.chat?.id) === String(config.chatId);
+      if (!fromMariam || /^\/start\s+\S/.test(String(incoming.text ?? ''))) {
+        await handleGuestMessage(incoming);
+      }
+      return res.sendStatus(200);
+    }
+
     const query = req.body?.callback_query;
     const message = query?.message;
+    if (query && message && String(query.data ?? '').startsWith('g:')) {
+      await handleGuestCallback(query);
+      return res.sendStatus(200);
+    }
     // Only buttons pressed in Mariam's own chat count.
     if (!query || !message || String(message.chat?.id) !== String(config.chatId)) {
       return res.sendStatus(200);

@@ -20,6 +20,7 @@ import {
   maxLengthFor,
   toCamel,
 } from '../services/profile.js';
+import { notifyGuest } from '../services/guestNotifications.js';
 
 export const adminRouter = Router();
 
@@ -877,9 +878,26 @@ adminRouter.patch(
       client.release();
     }
 
-    res.json(await getBookingWithItems(id));
+    const updated = await getBookingWithItems(id);
+    res.json(updated);
+    tellGuestAboutChange(existing, updated);
   })
 );
+
+// A guest who turned on Telegram reminders hears when Mariam moves or cancels
+// their visit — they'd otherwise turn up at the old time. Marking a visit
+// completed or a no-show, or changing its zones, isn't news to them.
+function tellGuestAboutChange(before, after) {
+  if (!after) return;
+  if (after.status === 'cancelled' && before.status !== 'cancelled') {
+    notifyGuest({ type: 'cancelled', bookingId: after.id });
+  } else if (
+    after.status === 'confirmed' &&
+    new Date(after.start_time).getTime() !== new Date(before.start_time).getTime()
+  ) {
+    notifyGuest({ type: 'moved', bookingId: after.id, previousStartTime: before.start_time });
+  }
+}
 
 // Bulk delete, for clearing out cancelled bookings without picking them off one
 // at a time. Only cancelled rows can go: a confirmed booking is a commitment and
@@ -929,6 +947,7 @@ adminRouter.patch(
       return res.status(400).json({ error: 'invalid_status' });
     }
 
+    const { rows: previous } = await pool.query('SELECT status FROM bookings WHERE id = $1', [id]);
     const { rows } = await pool.query(
       `UPDATE bookings SET status = $2 WHERE id = $1
        RETURNING id, status, start_time, end_time`,
@@ -939,6 +958,7 @@ adminRouter.patch(
       return res.status(404).json({ error: 'booking_not_found' });
     }
     res.json(rows[0]);
+    if (previous[0]) tellGuestAboutChange({ ...rows[0], status: previous[0].status }, rows[0]);
   })
 );
 

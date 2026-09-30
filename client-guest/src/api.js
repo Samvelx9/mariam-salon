@@ -59,6 +59,11 @@ export const api = {
   lookupBookings: (phone) =>
     request('/bookings/lookup', { method: 'POST', body: JSON.stringify({ phone }) }),
 
+  // The visit as a calendar file, named by the secret token only the guest who
+  // booked gets. A plain link rather than a fetch: phones open a calendar file
+  // straight into their calendar app when it's navigated to.
+  calendarUrl: (guestToken) => `${API_BASE}/calendar/${guestToken}.ics`,
+
   cancelBooking: (id) => request(`/bookings/${id}/cancel`, { method: 'POST' }),
 
   rescheduleBooking: (id, payload) =>

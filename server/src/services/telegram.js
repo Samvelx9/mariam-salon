@@ -60,9 +60,20 @@ function formatMessage(event) {
     );
   }
 
+  // The guest tapped "I'll come" on one of their reminders.
+  if (event.type === 'guest_confirmed') {
+    return (
+      `👍 Клиент подтвердил визит\n` +
+      `Услуга: ${serviceName}\n` +
+      `Дата: ${when}\n` +
+      `Клиент: ${booking.customer_name}\n` +
+      `Телефон: ${booking.customer_phone}`
+    );
+  }
+
   if (event.type === 'booking_cancelled') {
     return (
-      `❌ Отмена записи\n` +
+      `❌ Отмена записи${event.viaTelegram ? ' (клиент отменил в Telegram)' : ''}\n` +
       `Услуга: ${serviceName}\n` +
       `Дата: ${when}\n` +
       duration +
@@ -89,11 +100,13 @@ export function webhookSecret(token) {
 
 const TELEGRAM_TIMEOUT_MS = 10_000;
 
-// One Bot API call. Returns the parsed result, or null (logged) on any failure —
-// Telegram being down must never break whatever called it.
-export async function callTelegram(method, body) {
+// One Bot API call. Never throws — Telegram being down must never break
+// whatever called it. `ok` is false on any failure, and `status` is Telegram's
+// HTTP status when it answered at all: a 403 is a guest who has blocked the bot,
+// which is worth telling apart from an outage.
+export async function callTelegramDetailed(method, body) {
   const config = telegramConfig();
-  if (!config) return null;
+  if (!config) return { ok: false, status: null, result: null };
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${config.token}/${method}`, {
@@ -106,13 +119,29 @@ export async function callTelegram(method, body) {
     });
     if (!res.ok) {
       console.error(`Telegram ${method} failed:`, res.status, await res.text());
-      return null;
+      return { ok: false, status: res.status, result: null };
     }
-    return (await res.json()).result ?? true;
+    return { ok: true, status: res.status, result: (await res.json()).result ?? true };
   } catch (err) {
     console.error(`Telegram ${method} failed:`, err.message);
-    return null;
+    return { ok: false, status: null, result: null };
   }
+}
+
+// The same call for anyone who only cares about the result: it, or null.
+export async function callTelegram(method, body) {
+  const { ok, result } = await callTelegramDetailed(method, body);
+  return ok ? result : null;
+}
+
+// The bot's @username, which the guest's "Get reminders in Telegram" link needs.
+// Asked of Telegram once and kept; a failed lookup is retried next time.
+let botUsername = null;
+export async function getBotUsername() {
+  if (botUsername) return botUsername;
+  const me = await callTelegram('getMe', {});
+  botUsername = me?.username ?? null;
+  return botUsername;
 }
 
 // Best-effort: a Telegram outage or bad config must never break the booking
@@ -155,8 +184,9 @@ export async function askIfCompleted(booking) {
   return Boolean(result);
 }
 
-// Points Telegram at this server's webhook. Only button presses are asked for —
-// messages typed to the bot aren't something the app acts on.
+// Points Telegram at this server's webhook: button presses, and messages — a
+// guest pressing Start on their reminders link arrives as a "/start <token>"
+// message.
 export async function registerWebhook(publicUrl) {
   const config = telegramConfig();
   if (!config) return;
@@ -165,7 +195,7 @@ export async function registerWebhook(publicUrl) {
   const ok = await callTelegram('setWebhook', {
     url,
     secret_token: webhookSecret(config.token),
-    allowed_updates: ['callback_query'],
+    allowed_updates: ['callback_query', 'message'],
   });
   if (ok) console.log(`Telegram webhook set to ${url}`);
 }

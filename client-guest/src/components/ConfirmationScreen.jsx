@@ -1,5 +1,6 @@
 import LangSwitcher from './LangSwitcher.jsx';
 import ZoneList from './ZoneList.jsx';
+import { CalendarIcon, SendIcon } from './Icons.jsx';
 import { formatDateAt, formatPrice } from '../i18n.js';
 import { splitYerevanDateTime } from '../lib/time.js';
 
@@ -58,6 +59,8 @@ export default function ConfirmationScreen(f) {
             </div>
           </div>
 
+          <Reminders f={f} />
+
           <div style={{ width: '100%', display: 'flex', gap: 10 }}>
             <button
               onClick={f.goRescheduleFromConfirmation}
@@ -84,5 +87,55 @@ export default function ConfirmationScreen(f) {
         </button>
       </div>
     </>
+  );
+}
+
+const reminderButton = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 12,
+  width: '100%',
+  padding: '13px 16px',
+  borderRadius: 14,
+  border: '1px solid var(--line)',
+  background: 'var(--surface)',
+  color: 'var(--ink)',
+  fontSize: 14,
+  fontWeight: 600,
+  textAlign: 'left',
+  textDecoration: 'none',
+};
+
+// The two ways a guest can be reminded of the visit: their own calendar, and
+// Mariam's bot. Both are plain links — the calendar file opens in the phone's
+// calendar app, the Telegram one in the Telegram app — and either is left out
+// when the server didn't hand back what it needs (the bot only takes guests on
+// the live site).
+function Reminders({ f }) {
+  const { T, calendarUrl, activeBooking, telegramOpened } = f;
+  const telegramLink = activeBooking.telegramLink;
+  if (!calendarUrl && !telegramLink) return null;
+
+  return (
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left' }}>
+      <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, letterSpacing: 0.3 }}>{T.stayReminded}</span>
+      {calendarUrl && (
+        <a href={calendarUrl} style={reminderButton}>
+          <CalendarIcon />
+          <span>{T.addToCalendar}</span>
+        </a>
+      )}
+      {telegramLink && (
+        <a href={telegramLink} target="_blank" rel="noopener noreferrer" onClick={f.markTelegramOpened} style={reminderButton}>
+          <SendIcon />
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span>{T.telegramReminders}</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: telegramOpened ? 'var(--sage)' : 'var(--muted)' }}>
+              {telegramOpened ? T.telegramPressStart : T.telegramCaption}
+            </span>
+          </span>
+        </a>
+      )}
+    </div>
   );
 }

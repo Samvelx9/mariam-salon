@@ -41,6 +41,19 @@ export async function getBookingWithItems(id) {
   return rows[0] || null;
 }
 
+// The guest-notification columns ride along only here, never in the lists the
+// admin panel and the phone lookup read: `guest_token` is what proves a request
+// comes from the guest who booked, so it must not be handed to anyone who just
+// knows a phone number.
+const GUEST_FIELDS = `b.guest_token, b.guest_lang, b.guest_chat_id, b.guest_linked_at,
+       b.guest_confirmed_at, b.created_at`;
+
+export async function getBookingForGuest({ id, token }) {
+  const [where, value] = token ? ['b.guest_token = $1', token] : ['b.id = $1', id];
+  const { rows } = await pool.query(bookingsQuery({ where, extraFields: GUEST_FIELDS }), [value]);
+  return rows[0] || null;
+}
+
 // Turns what a client asked for into what will actually be stored: the zones in
 // the order they were chosen, each with its own duration and price, plus the
 // totals the booking itself carries. Everything is priced from the database
@@ -113,15 +126,22 @@ export async function resolveItems(rawItems, { requireActive = true } = {}) {
 // whole thing.
 export async function insertBookingWithItems(
   client,
-  { startTime, endTime, customerName, customerPhone, status, totalPrice, items, requestKey }
+  {
+    startTime, endTime, customerName, customerPhone, status, totalPrice, items,
+    requestKey, guestToken, guestLang,
+  }
 ) {
   const { rows } = await client.query(
     // The cast is required: without it Postgres types the parameter as text and
     // refuses to assign it to the booking_status enum column.
-    `INSERT INTO bookings (start_time, end_time, customer_name, customer_phone, status, price_at_booking, request_key)
-     VALUES ($1, $2, $3, $4, COALESCE($5::booking_status, 'confirmed'), $6, $7)
+    `INSERT INTO bookings (start_time, end_time, customer_name, customer_phone, status,
+                           price_at_booking, request_key, guest_token, guest_lang)
+     VALUES ($1, $2, $3, $4, COALESCE($5::booking_status, 'confirmed'), $6, $7, $8, $9)
      RETURNING id`,
-    [startTime, endTime, customerName, customerPhone, status ?? null, totalPrice, requestKey ?? null]
+    [
+      startTime, endTime, customerName, customerPhone, status ?? null, totalPrice,
+      requestKey ?? null, guestToken ?? null, guestLang ?? null,
+    ]
   );
   const bookingId = rows[0].id;
   await replaceItems(client, bookingId, items);

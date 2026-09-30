@@ -47,6 +47,15 @@ export const SendIcon = (props) => (
   </Icon>
 );
 
+export const CalendarIcon = (props) => (
+  <Icon {...props}>
+    <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+    <path d="M3.5 10H20.5" />
+    <path d="M8 3V6.5" />
+    <path d="M16 3V6.5" />
+  </Icon>
+);
+
 export const CameraIcon = (props) => (
   <Icon {...props}>
     <rect x="3.5" y="3.5" width="17" height="17" rx="5" />

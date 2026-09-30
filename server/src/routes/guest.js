@@ -10,6 +10,7 @@ import { localToUtc, addMinutes } from '../lib/time.js';
 import {
   bookingsQuery,
   getBookingWithItems,
+  getBookingForGuest,
   resolveItems,
   insertBookingWithItems,
 } from '../services/bookings.js';
@@ -18,6 +19,14 @@ import { notifyTelegram } from '../services/telegram.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { cleanString, isValidDate, isValidTime } from '../lib/validate.js';
 import { getProfileRow, shapeProfile } from '../services/profile.js';
+import {
+  GUEST_LANGS,
+  GUEST_TOKEN_PATTERN,
+  calendarFileFor,
+  newGuestToken,
+  notifyGuest,
+  telegramLinkFor,
+} from '../services/guestNotifications.js';
 
 export const guestRouter = Router();
 
@@ -163,8 +172,15 @@ guestRouter.get('/slots', asyncHandler(async (req, res) => {
   res.json({ days, durationMinutes });
 }));
 
-function createdBookingBody(booking) {
+// `guestToken` and `telegramLink` go only to the guest who just booked — they
+// are what the confirmation screen's "Add to calendar" and "Get reminders in
+// Telegram" buttons open. `telegramLink` is null where the bot can't take
+// guests (no bot configured, or a dev machine without PUBLIC_URL).
+async function createdBookingBody(booking) {
+  const guest = await getBookingForGuest({ id: booking.id });
   return {
+    guestToken: guest?.guest_token ?? null,
+    telegramLink: await telegramLinkFor(guest?.guest_token),
     id: booking.id,
     startTime: booking.start_time,
     endTime: booking.end_time,
@@ -196,6 +212,10 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
   const customerName = cleanString(req.body?.customerName, 100);
   const customerPhone = cleanString(req.body?.customerPhone, 30);
   const requestKey = req.body?.requestKey ?? null;
+  // The language the guest is reading the site in, for their messages later.
+  // Anything unexpected just falls back to the default rather than refusing
+  // the booking.
+  const guestLang = GUEST_LANGS.includes(req.body?.lang) ? req.body.lang : null;
 
   if (!isValidDate(date) || !isValidTime(time)) {
     return res.status(400).json({ error: 'invalid_request' });
@@ -209,7 +229,7 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
 
   if (requestKey) {
     const existing = await bookingForRequestKey(requestKey);
-    if (existing) return res.status(201).json(createdBookingBody(existing));
+    if (existing) return res.status(201).json(await createdBookingBody(existing));
   }
 
   // One zone or several — a single-zone booking is just a basket of one.
@@ -231,7 +251,7 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
   // taken, so the key is checked again before refusing.
   const slotTaken = async () => {
     const existing = requestKey && (await bookingForRequestKey(requestKey));
-    if (existing) return res.status(201).json(createdBookingBody(existing));
+    if (existing) return res.status(201).json(await createdBookingBody(existing));
     return res.status(409).json({ error: 'slot_taken' });
   };
 
@@ -251,6 +271,8 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
       totalPrice: resolved.totalPrice,
       items: resolved.items,
       requestKey,
+      guestToken: newGuestToken(),
+      guestLang,
     });
     await client.query('COMMIT');
   } catch (err) {
@@ -267,7 +289,7 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
   }
 
   const booking = await getBookingWithItems(bookingId);
-  res.status(201).json(createdBookingBody(booking));
+  res.status(201).json(await createdBookingBody(booking));
 
   // After answering, so the guest's confirmation never waits on Telegram.
   notifyTelegram({
@@ -314,6 +336,7 @@ guestRouter.post('/bookings/:id/cancel', asyncHandler(async (req, res) => {
   await pool.query(`UPDATE bookings SET status = 'cancelled' WHERE id = $1`, [id]);
   res.json({ id, status: 'cancelled' });
   notifyTelegram({ type: 'booking_cancelled', booking });
+  notifyGuest({ type: 'cancelled', bookingId: id });
 }));
 
 // POST /api/bookings/:id/reschedule — same cutoff + slot rules as a new booking
@@ -382,4 +405,26 @@ guestRouter.post('/bookings/:id/reschedule', asyncHandler(async (req, res) => {
     previousStartTime: booking.start_time,
     durationMinutes: bookedMinutes(booking),
   });
+  notifyGuest({ type: 'moved', bookingId: id, previousStartTime: booking.start_time });
+}));
+
+// GET /api/calendar/<guest token>.ics — the visit as a calendar event, for the
+// confirmation screen's "Add to calendar". Named by the guest's secret token
+// rather than the booking id, so nobody can page through other people's visits.
+// Always built from the booking as it is now, so a file fetched after a
+// reschedule has the new time.
+guestRouter.get('/calendar/:token.ics', asyncHandler(async (req, res) => {
+  const token = req.params.token;
+  if (!GUEST_TOKEN_PATTERN.test(token)) {
+    return res.status(404).json({ error: 'booking_not_found' });
+  }
+  const booking = await getBookingForGuest({ token });
+  if (!booking || booking.status === 'cancelled') {
+    return res.status(404).json({ error: 'booking_not_found' });
+  }
+
+  res.set('Content-Type', 'text/calendar; charset=utf-8');
+  res.set('Content-Disposition', 'inline; filename="mariam-visit.ics"');
+  res.set('Cache-Control', 'no-store');
+  res.send(await calendarFileFor(booking));
 }));

@@ -115,6 +115,40 @@ webhook is registered, the `getUpdates` call in step 3 above returns an error; t
 look up a chat id again, call `deleteWebhook` first (the next backend restart
 registers it again).
 
+### Guest reminders (calendar + Telegram)
+
+After booking, the guest's confirmation screen offers two ways not to forget the
+visit:
+
+- **Add to calendar** downloads `GET /api/calendar/<guest token>.ics`, a calendar
+  event with the zones, Mariam's phone and the salon address, plus alarms a day
+  and 2 hours before. Phones open it straight into their calendar app. It is
+  always built from the booking as it is now, and a cancelled booking's file is
+  gone (404).
+- **Get reminders in Telegram** opens Mariam's bot on
+  `t.me/<bot>?start=<guest token>`. Pressing **Start** there links that chat to
+  the booking. From then on the guest gets, in the language they booked in:
+  - a reminder the evening before (from 18:00) and one 2 hours before, each with
+    **✅ I'll be there** / **❌ Cancel visit** buttons (cancelling asks once more);
+  - a message whenever the visit is moved or cancelled, by them on the site or by
+    Mariam in the admin panel.
+
+  Mariam gets `👍 Клиент подтвердил визит` on the first "I'll be there", and
+  the usual `❌ Отмена записи` (marked "клиент отменил в Telegram") on a cancel,
+  which frees the slot at once. No reminder goes out between 21:00 and 09:00, and
+  anything else sent then is silent. Anything a guest types to the bot gets a
+  reply saying it's a reminder bot and giving Mariam's phone / Telegram from the
+  landing page. A guest who blocks the bot is simply unlinked.
+
+The guest token is a random secret on each booking (`bookings.guest_token`),
+returned only in the `POST /api/bookings` answer. The phone lookup never shows it,
+so knowing someone's phone number isn't enough to subscribe to their visit.
+Bookings Mariam enters herself have no token, so those guests aren't reached.
+Everything lives in `server/src/services/guestNotifications.js`. It uses the same
+bot, webhook and `PUBLIC_URL` condition as the "did the visit happen?" questions,
+so it needs no extra setup. On the next start the backend re-registers the
+webhook to also receive messages, which is how a guest's "Start" arrives.
+
 ## Deployment
 
 Everything runs on one Oracle Cloud VM (`oracle-server`, Ubuntu 24.04), entirely via

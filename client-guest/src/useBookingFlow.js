@@ -31,6 +31,9 @@ const INITIAL_FLOW_STATE = {
   lookupError: false,
   bookings: [],
   activeBooking: null,
+  // Set once the guest has tapped "Get reminders in Telegram", so the button can
+  // remind them of the one step left there — pressing Start.
+  telegramOpened: false,
   manageOrigin: null,
   bannerErrorKey: null,
   busy: false,
@@ -246,7 +249,13 @@ export function useBookingFlow() {
 
     patch({ busy: true, bannerErrorKey: null });
     try {
-      const booking = await api.createBooking({ ...payload, requestKey: requestKeyRef.current.key });
+      // The language rides outside the key's signature: switching language
+      // between a lost answer and a retry is still the same booking.
+      const booking = await api.createBooking({
+        ...payload,
+        lang,
+        requestKey: requestKeyRef.current.key,
+      });
       patch({
         busy: false,
         step: 'confirmation',
@@ -259,7 +268,10 @@ export function useBookingFlow() {
           customerName: booking.customerName,
           customerPhone: booking.customerPhone,
           priceAtBooking: booking.priceAtBooking,
+          guestToken: booking.guestToken,
+          telegramLink: booking.telegramLink,
         },
+        telegramOpened: false,
       });
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'slot_taken' || err.code === 'too_soon')) {
@@ -270,6 +282,8 @@ export function useBookingFlow() {
       }
     }
   }
+
+  const markTelegramOpened = () => patch({ telegramOpened: true });
 
   function resetToStart() {
     setFlow({ ...INITIAL_FLOW_STATE });
@@ -421,5 +435,7 @@ export function useBookingFlow() {
     backFromSubflow,
     confirmNewTime,
     finalizeCancel,
+    markTelegramOpened,
+    calendarUrl: flow.activeBooking?.guestToken ? api.calendarUrl(flow.activeBooking.guestToken) : null,
   };
 }

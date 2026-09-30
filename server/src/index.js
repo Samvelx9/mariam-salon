@@ -7,6 +7,7 @@ import { adminRouter } from './routes/admin.js';
 import { telegramRouter } from './routes/telegram.js';
 import { registerWebhook, telegramConfig } from './services/telegram.js';
 import { startCompletionPrompts } from './services/completionPrompts.js';
+import { startGuestReminders } from './services/guestNotifications.js';
 
 const app = express();
 app.use(cors());
@@ -35,13 +36,14 @@ const port = process.env.PORT || 4000;
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
 
-  // The "did the visit happen?" questions need Telegram to be able to reach this
-  // server with Mariam's answers, so they only run where PUBLIC_URL says it can
-  // — the deployed backend, not a dev machine that happens to have the bot
-  // token in its .env.
+  // The "did the visit happen?" questions and the guests' reminders need
+  // Telegram to be able to reach this server with the answers, so they only run
+  // where PUBLIC_URL says it can — the deployed backend, not a dev machine that
+  // happens to have the bot token in its .env.
   const publicUrl = process.env.PUBLIC_URL;
   if (publicUrl && telegramConfig()) {
     registerWebhook(publicUrl);
     startCompletionPrompts();
+    startGuestReminders();
   }
 });
