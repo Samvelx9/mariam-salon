@@ -318,6 +318,38 @@ guestRouter.post('/bookings/lookup', asyncHandler(async (req, res) => {
   res.json(rows);
 }));
 
+// POST /api/bookings/manage — the booking a guest's Telegram link or calendar
+// event points at (`?manage=<guest token>` on the site), plus every upcoming
+// booking on the same phone, which is what the manage screen's back button
+// shows — the same list the phone lookup would. `booking` is null once the
+// visit is past or cancelled, and the guest lands on that list instead.
+guestRouter.post('/bookings/manage', asyncHandler(async (req, res) => {
+  const token = req.body?.token;
+  if (typeof token !== 'string' || !GUEST_TOKEN_PATTERN.test(token)) {
+    return res.status(404).json({ error: 'booking_not_found' });
+  }
+  const guest = await getBookingForGuest({ token });
+  if (!guest) {
+    return res.status(404).json({ error: 'booking_not_found' });
+  }
+
+  const { rows: upcoming } = await pool.query(
+    bookingsQuery({
+      where: `b.customer_phone = $1
+       AND b.status NOT IN ('cancelled', 'completed')
+       AND b.start_time > now()`,
+    }),
+    [guest.customer_phone]
+  );
+
+  res.json({
+    booking: upcoming.find((b) => b.id === guest.id) ?? null,
+    bookings: upcoming,
+    phone: guest.customer_phone,
+    lang: guest.guest_lang,
+  });
+}));
+
 // POST /api/bookings/:id/cancel — no cutoff, always allowed
 guestRouter.post('/bookings/:id/cancel', asyncHandler(async (req, res) => {
   const id = Number(req.params.id);

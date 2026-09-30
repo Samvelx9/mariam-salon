@@ -133,6 +133,14 @@ visit:
   - a message whenever the visit is moved or cancelled, by them on the site or by
     Mariam in the admin panel.
 
+  Every message, and the calendar event, links to
+  `mariambeauty.skin/?manage=<guest token>`, and each reminder also has a
+  **🔄 Reschedule** button with that link. The link opens the site straight on
+  that booking's manage screen, in the guest's language, with the phone lookup
+  already done, so "back" lists all their upcoming visits. A visit that's past or
+  cancelled opens on that list instead. The page removes the token from the
+  address bar straight away (`POST /api/bookings/manage`).
+
   Mariam gets `👍 Клиент подтвердил визит` on the first "I'll be there", and
   the usual `❌ Отмена записи` (marked "клиент отменил в Telegram") on a cancel,
   which frees the slot at once. No reminder goes out between 21:00 and 09:00, and

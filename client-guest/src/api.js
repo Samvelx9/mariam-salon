@@ -64,6 +64,11 @@ export const api = {
   // straight into their calendar app when it's navigated to.
   calendarUrl: (guestToken) => `${API_BASE}/calendar/${guestToken}.ics`,
 
+  // The booking a guest's Telegram or calendar link names by its token, with
+  // the rest of that phone's upcoming bookings.
+  manageBooking: (token) =>
+    request('/bookings/manage', { method: 'POST', body: JSON.stringify({ token }) }),
+
   cancelBooking: (id) => request(`/bookings/${id}/cancel`, { method: 'POST' }),
 
   rescheduleBooking: (id, payload) =>

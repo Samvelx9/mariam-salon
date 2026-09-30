@@ -83,6 +83,32 @@ export function useBookingFlow() {
     };
   }, []);
 
+  // A link from a guest's Telegram message or calendar event opens the site
+  // on `?manage=<token>`: straight to that booking's manage screen, in the
+  // language they booked in, with the phone lookup already done so "back"
+  // shows all their upcoming visits. A visit that's past or cancelled lands on
+  // that list instead. The token is taken out of the address bar at once, so
+  // it isn't left behind in a bookmark or a shared screenshot.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('manage');
+    if (!token) return;
+    params.delete('manage');
+    const rest = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash);
+
+    patch({ busy: true });
+    api
+      .manageBooking(token)
+      .then(({ booking, bookings, phone, lang: bookedLang }) => {
+        if (STRINGS[bookedLang]) setLangState(bookedLang);
+        patch({ busy: false, lookupPhone: phone, bookings, step: 'bookingsList' });
+        if (booking) openBooking(booking, phone);
+      })
+      .catch(() => patch({ busy: false, step: 'lookup', bannerErrorKey: 'genericError' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Flat view of every bookable zone, for the screens that only ever look a
   // service up by id (calendar, confirmation, manage).
   const services = useMemo(() => categories.flatMap((c) => c.services), [categories]);
@@ -311,7 +337,9 @@ export function useBookingFlow() {
   const backToLookup = () => patch({ step: 'lookup' });
   const backToBookingsList = () => patch({ step: 'bookingsList' });
 
-  const pickBooking = (booking) => {
+  const pickBooking = (booking) => openBooking(booking, flow.lookupPhone);
+
+  function openBooking(booking, phone) {
     patch({
       step: 'manage',
       activeBooking: {
@@ -321,11 +349,11 @@ export function useBookingFlow() {
         endTime: booking.end_time,
         status: booking.status,
         customerName: booking.customer_name,
-        customerPhone: flow.lookupPhone,
+        customerPhone: phone,
         priceAtBooking: booking.price_at_booking,
       },
     });
-  };
+  }
 
   function goReschedule(origin) {
     patch({ step: 'reschedulePicker', manageOrigin: origin, bannerErrorKey: null });

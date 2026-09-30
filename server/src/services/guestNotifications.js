@@ -55,7 +55,8 @@ const TEXT = {
     was: 'Was:',
     cancelled: (when) => `❌ Your visit on ${when} has been cancelled.`,
     bookAgain: (site) => `To book again: ${site}`,
-    manage: (site) => `To reschedule or cancel: ${site}`,
+    manage: (url) => `To reschedule or cancel: ${url}`,
+    rescheduleBtn: '🔄 Reschedule',
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
     weekdays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
     date: (weekday, day, month, time) => `${weekday}, ${day} ${month}, ${time}`,
@@ -83,7 +84,8 @@ const TEXT = {
     was: 'Было:',
     cancelled: (when) => `❌ Ваш визит (${when}) отменён.`,
     bookAgain: (site) => `Записаться снова: ${site}`,
-    manage: (site) => `Перенести или отменить: ${site}`,
+    manage: (url) => `Перенести или отменить: ${url}`,
+    rescheduleBtn: '🔄 Перенести',
     months: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'],
     weekdays: ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'],
     date: (weekday, day, month, time) => `${weekday}, ${day} ${month}, ${time}`,
@@ -111,7 +113,8 @@ const TEXT = {
     was: 'Նախկինում՝',
     cancelled: (when) => `❌ Ձեր այցը (${when}) չեղարկված է։`,
     bookAgain: (site) => `Կրկին գրանցվելու համար՝ ${site}`,
-    manage: (site) => `Տեղափոխելու կամ չեղարկելու համար՝ ${site}`,
+    manage: (url) => `Տեղափոխելու կամ չեղարկելու համար՝ ${url}`,
+    rescheduleBtn: '🔄 Տեղափոխել',
     months: ['հունվարի', 'փետրվարի', 'մարտի', 'ապրիլի', 'մայիսի', 'հունիսի', 'հուլիսի', 'օգոստոսի', 'սեպտեմբերի', 'հոկտեմբերի', 'նոյեմբերի', 'դեկտեմբերի'],
     weekdays: ['կիրակի', 'երկուշաբթի', 'երեքշաբթի', 'չորեքշաբթի', 'հինգշաբթի', 'ուրբաթ', 'շաբաթ'],
     date: (weekday, day, month, time) => `${weekday}, ${month} ${day}, ${time}`,
@@ -146,6 +149,14 @@ export function newGuestToken() {
 }
 
 export const GUEST_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32}$/;
+
+// Opens the site straight on this booking's manage screen — see
+// `?manage=` in client-guest/src/useBookingFlow.js — rather than on the landing
+// page, where the guest would have to find it again by phone number.
+export function manageUrlFor(booking) {
+  const site = siteUrl();
+  return booking?.guest_token ? `${site}/?manage=${booking.guest_token}` : site;
+}
 
 export async function telegramLinkFor(token) {
   if (!token || !guestTelegramEnabled()) return null;
@@ -194,13 +205,18 @@ function visitDetails(booking, lang, profile) {
   return lines.join('\n');
 }
 
-function reminderKeyboard(bookingId, lang) {
+// Coming and cancelling are answered right here in the chat; moving the visit
+// needs the slot picker, so that one is a link to the booking on the site.
+function reminderKeyboard(booking, lang) {
   const T = TEXT[lang];
   return {
-    inline_keyboard: [[
-      { text: T.comeBtn, callback_data: `g:ok:${bookingId}` },
-      { text: T.cancelBtn, callback_data: `g:cx:${bookingId}` },
-    ]],
+    inline_keyboard: [
+      [
+        { text: T.comeBtn, callback_data: `g:ok:${booking.id}` },
+        { text: T.cancelBtn, callback_data: `g:cx:${booking.id}` },
+      ],
+      [{ text: T.rescheduleBtn, url: manageUrlFor(booking) }],
+    ],
   };
 }
 
@@ -287,7 +303,7 @@ export async function handleGuestMessage(message) {
   const lang = langOf(booking);
   const T = TEXT[lang];
   const profile = await getProfileRow();
-  await reply(chatId, `${T.linked}\n\n${visitDetails(booking, lang, profile)}\n\n${T.manage(siteUrl())}`);
+  await reply(chatId, `${T.linked}\n\n${visitDetails(booking, lang, profile)}\n\n${T.manage(manageUrlFor(booking))}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -318,7 +334,7 @@ export async function handleGuestCallback(query) {
 
   if (action === 'cxn') {
     await callTelegram('answerCallbackQuery', { callback_query_id: query.id });
-    await callTelegram('editMessageReplyMarkup', { ...where, reply_markup: reminderKeyboard(id, lang) });
+    await callTelegram('editMessageReplyMarkup', { ...where, reply_markup: reminderKeyboard(booking, lang) });
     return;
   }
 
@@ -387,7 +403,7 @@ export async function notifyGuest({ type, bookingId, previousStartTime }) {
       const before = formatWhen(previousStartTime, lang);
       await sendToGuest(
         booking,
-        `${T.moved}\n${T.was} ${before}\n\n${visitDetails(booking, lang, profile)}\n\n${T.manage(siteUrl())}`
+        `${T.moved}\n${T.was} ${before}\n\n${visitDetails(booking, lang, profile)}\n\n${T.manage(manageUrlFor(booking))}`
       );
     } else if (type === 'cancelled') {
       await sendToGuest(
@@ -467,7 +483,7 @@ export async function sendReminders() {
       const sent = await sendToGuest(
         booking,
         `${reminder.text(T, booking)}\n\n${visitDetails(booking, lang, profile)}\n\n${T.askCome}`,
-        { reply_markup: reminderKeyboard(id, lang) }
+        { reply_markup: reminderKeyboard(booking, lang) }
       );
       if (!sent) {
         // Handed back to the next check, which gives up by itself once the
@@ -509,7 +525,7 @@ export async function calendarFileFor(booking) {
   const profile = await getProfileRow();
   const zones = zoneNames(booking, lang);
   const site = siteUrl();
-  const description = [zones.join('\n'), profile?.phone, site && T.manage(site)]
+  const description = [zones.join('\n'), profile?.phone, site && T.manage(manageUrlFor(booking))]
     .filter(Boolean)
     .join('\n\n');
 
