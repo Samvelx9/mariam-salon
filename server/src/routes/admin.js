@@ -1110,15 +1110,20 @@ adminRouter.get(
     const from = isValidDate(req.query.from) ? req.query.from : `${today.slice(0, 7)}-01`;
     const to = isValidDate(req.query.to) ? req.query.to : today;
 
+    // Zone names repeat across treatments ("Deep bikini" is both waxing and
+    // sugaring), so each row carries its treatment for the dashboard to group by.
     const { rows: incomeByService } = await pool.query(
       `SELECT s.id AS service_id, s.name_en, s.name_ru, s.name_hy,
+              c.id AS category_id, c.name_en AS category_name_en,
+              c.name_ru AS category_name_ru, c.name_hy AS category_name_hy,
               COALESCE(SUM(i.price_at_booking), 0) AS total, COUNT(i.id) AS count
        FROM booking_items i
        JOIN bookings b ON b.id = i.booking_id
        JOIN services s ON s.id = i.service_id
+       JOIN service_categories c ON c.id = s.category_id
        WHERE b.status = 'completed'
          AND (b.start_time AT TIME ZONE '+04:00')::date BETWEEN $1 AND $2
-       GROUP BY s.id, s.name_en, s.name_ru, s.name_hy
+       GROUP BY s.id, c.id
        ORDER BY total DESC`,
       [from, to]
     );

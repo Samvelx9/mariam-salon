@@ -189,7 +189,7 @@ export default function DashboardScreen({ T, lang, onAuthError }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
             <BreakdownCard
               title={T.incomeByService}
-              rows={financials.income.byService.map((r) => ({ label: r[`name_${lang}`], value: r.total }))}
+              groups={groupByTreatment(financials.income.byService, lang)}
               lang={lang}
               noData={T.noData}
             />
@@ -368,20 +368,61 @@ function MetricCard({ label, value, color = 'var(--ink)' }) {
   );
 }
 
-function BreakdownCard({ title, rows, lang, noData }) {
+// The same zone can exist under several treatments ("Deep bikini" for both
+// waxing and sugaring), so income is shown per treatment, biggest first.
+function groupByTreatment(rows, lang) {
+  const groups = new Map();
+  for (const r of rows) {
+    if (!groups.has(r.category_id)) {
+      groups.set(r.category_id, { label: r[`category_name_${lang}`], value: 0, rows: [] });
+    }
+    const group = groups.get(r.category_id);
+    group.value += r.total;
+    group.rows.push({ label: r[`name_${lang}`], value: r.total });
+  }
+  return [...groups.values()].sort((a, b) => b.value - a.value);
+}
+
+function BreakdownCard({ title, rows, groups, lang, noData }) {
+  const empty = groups ? groups.length === 0 : rows.length === 0;
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <h3 style={{ fontSize: 15, fontWeight: 600 }}>{title}</h3>
-      {rows.length === 0 ? (
+      {empty ? (
         <span style={{ fontSize: 13, color: 'var(--muted)' }}>{noData}</span>
-      ) : (
-        rows.map((r, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5 }}>
-            <span>{r.label}</span>
-            <span style={{ fontWeight: 600 }}>{formatPrice(r.value, lang)}</span>
+      ) : groups ? (
+        groups.map((g, i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 12,
+                color: 'var(--muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              <span>{g.label}</span>
+              <span>{formatPrice(g.value, lang)}</span>
+            </div>
+            {g.rows.map((r, j) => (
+              <BreakdownRow key={j} row={r} lang={lang} indent />
+            ))}
           </div>
         ))
+      ) : (
+        rows.map((r, i) => <BreakdownRow key={i} row={r} lang={lang} />)
       )}
+    </div>
+  );
+}
+
+function BreakdownRow({ row, lang, indent = false }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, paddingLeft: indent ? 12 : 0 }}>
+      <span>{row.label}</span>
+      <span style={{ fontWeight: 600 }}>{formatPrice(row.value, lang)}</span>
     </div>
   );
 }
