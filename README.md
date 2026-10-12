@@ -244,6 +244,37 @@ was scoped in Step 8, since none of the internal service-to-service calls (backe
 ↔ Postgres, backend ↔ Telegram) reference the domain at all, and the frontends only
 ever call a relative `/api` path.
 
+### Monitoring
+
+`monitoring/` is a fourth Compose project: Prometheus, Grafana, node_exporter (host
+metrics), cAdvisor (per-container metrics) and postgres_exporter. It is not part of
+`deploy.sh`. After changing anything under `monitoring/`, push, run `deploy.sh` (for the
+`git pull`), then:
+
+```bash
+ssh oracle-server 'sudo bash /opt/app/repo/monitoring/up.sh'
+```
+
+Every port binds to `127.0.0.1` only, so nothing is public. To open Grafana, tunnel to
+it and browse `http://localhost:3000` (user `admin`):
+
+```bash
+ssh -N -L 3000:127.0.0.1:3000 oracle-server
+```
+
+The admin password and the Postgres `monitoring` role's password (read-only,
+`pg_monitor`) are generated on first run into `/opt/monitoring/monitoring.env`
+(mode 600). They are never in git. Read the Grafana one on the VM with
+`sudo grep GRAFANA /opt/monitoring/monitoring.env`. Dashboards are provisioned from
+`monitoring/grafana/dashboards/` into the "VM" folder. Edits made in the UI don't
+stick, so change the JSON files instead. Prometheus keeps 30 days or 5 GB of data,
+whichever limit it hits first.
+
+The host firewall rejects container → host traffic, so Prometheus, Grafana and
+node_exporter use the host network. cAdvisor and postgres_exporter publish on
+`127.0.0.1`. postgres_exporter joins `nginx-setup_web` to reach `postgres`; keep its
+name as is, since a service called `backend` on that network would hijack the API.
+
 ### Initial VM setup (already done — kept here for disaster recovery)
 
 See `DONE.md` for the full history. In short: Docker/Compose were pre-installed;
