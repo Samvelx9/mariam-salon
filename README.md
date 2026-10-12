@@ -275,6 +275,27 @@ node_exporter use the host network. cAdvisor and postgres_exporter publish on
 `127.0.0.1`. postgres_exporter joins `nginx-setup_web` to reach `postgres`; keep its
 name as is, since a service called `backend` on that network would hijack the API.
 
+### Idle keepalive
+
+The Oracle account is on the Always Free tier (the trial ended 2026-10-12 and the upgrade
+to Pay As You Go was declined). On that tier Oracle may stop the A1 instance if, over
+7 days, its 95th-percentile CPU, network and memory utilization are all below 20%.
+The real load is far below that, so `keepalive/` runs one container, `idle-guard`. It
+holds 3 GB of RAM (memory use goes from ~9% to ~35%) and burns 0.6 of a core (~30% CPU)
+as a backup.
+
+The container has no network and hard CPU and memory caps. It gets the lowest CPU
+share, and if memory runs short the kernel kills it first. It is not part of
+`deploy.sh`:
+
+```bash
+ssh oracle-server 'cd /opt/app/repo/keepalive && sudo docker compose up -d'
+```
+
+Tune `HOLD_MB` / `BURN_CPU` / `cpus` in `keepalive/docker-compose.yml`. Remove it with
+`sudo docker compose down` in the same directory once the account is on Pay As You Go,
+where idle reclamation doesn't apply.
+
 ### Initial VM setup (already done — kept here for disaster recovery)
 
 See `DONE.md` for the full history. In short: Docker/Compose were pre-installed;

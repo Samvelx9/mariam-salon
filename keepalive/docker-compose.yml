@@ -1,0 +1,24 @@
+# Keeps oracle-server from being reclaimed as idle under Oracle's Always Free rules.
+# See README "Idle keepalive". Start / update with:
+#   ssh oracle-server 'cd /opt/app/repo/keepalive && sudo docker compose up -d'
+
+name: keepalive
+
+services:
+  idle-guard:
+    image: python:3.13-alpine
+    container_name: idle-guard
+    restart: unless-stopped
+    network_mode: none
+    command: ["python", "-u", "/keepalive.py"]
+    environment:
+      HOLD_MB: "3072"   # ~3 GB of 12 GB: lifts memory use from ~9% to ~35%
+      BURN_CPU: "1"
+    volumes:
+      - ./keepalive.py:/keepalive.py:ro
+    # 0.6 of a core is ~30% of the VM's 2 OCPUs; lowest share so the apps always win.
+    cpus: 0.6
+    cpu_shares: 2
+    mem_limit: 3500m
+    # If the VM ever runs short of memory, this is the first process the kernel kills.
+    oom_score_adj: 1000
