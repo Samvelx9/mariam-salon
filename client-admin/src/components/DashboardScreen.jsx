@@ -374,11 +374,12 @@ function groupByTreatment(rows, lang) {
   const groups = new Map();
   for (const r of rows) {
     if (!groups.has(r.category_id)) {
-      groups.set(r.category_id, { label: r[`category_name_${lang}`], value: 0, rows: [] });
+      groups.set(r.category_id, { label: r[`category_name_${lang}`], value: 0, count: 0, rows: [] });
     }
     const group = groups.get(r.category_id);
     group.value += r.total;
-    group.rows.push({ label: r[`name_${lang}`], value: r.total });
+    group.count += r.count;
+    group.rows.push({ label: r[`name_${lang}`], value: r.total, count: r.count });
   }
   return [...groups.values()].sort((a, b) => b.value - a.value);
 }
@@ -395,8 +396,7 @@ function BreakdownCard({ title, rows, groups, lang, noData }) {
           <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
+                ...breakdownGrid(true),
                 fontSize: 12,
                 color: 'var(--muted)',
                 textTransform: 'uppercase',
@@ -404,7 +404,8 @@ function BreakdownCard({ title, rows, groups, lang, noData }) {
               }}
             >
               <span>{g.label}</span>
-              <span>{formatPrice(g.value, lang)}</span>
+              <span style={{ textAlign: 'right' }}>{g.count}</span>
+              <span style={{ textAlign: 'right' }}>{formatPrice(g.value, lang)}</span>
             </div>
             {g.rows.map((r, j) => (
               <BreakdownRow key={j} row={r} lang={lang} indent />
@@ -418,11 +419,25 @@ function BreakdownCard({ title, rows, groups, lang, noData }) {
   );
 }
 
+// Name · count · amount. The count column only exists where rows carry one
+// (income by zone: how many completed visits included it); fixed widths for
+// the number columns keep them lined up from row to row.
+function breakdownGrid(withCount) {
+  return {
+    display: 'grid',
+    gridTemplateColumns: withCount ? 'minmax(0, 1fr) 44px 96px' : 'minmax(0, 1fr) auto',
+    columnGap: 12,
+    alignItems: 'baseline',
+  };
+}
+
 function BreakdownRow({ row, lang, indent = false }) {
+  const withCount = row.count !== undefined;
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, paddingLeft: indent ? 12 : 0 }}>
+    <div style={{ ...breakdownGrid(withCount), fontSize: 13.5, paddingLeft: indent ? 12 : 0 }}>
       <span>{row.label}</span>
-      <span style={{ fontWeight: 600 }}>{formatPrice(row.value, lang)}</span>
+      {withCount && <span style={{ textAlign: 'right', color: 'var(--muted)' }}>{row.count}</span>}
+      <span style={{ fontWeight: 600, textAlign: 'right' }}>{formatPrice(row.value, lang)}</span>
     </div>
   );
 }
