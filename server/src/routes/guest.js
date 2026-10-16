@@ -27,6 +27,7 @@ import {
   notifyGuest,
   telegramLinkFor,
 } from '../services/guestNotifications.js';
+import { RECENT_BOOKINGS_SQL } from '../lib/popularity.js';
 
 export const guestRouter = Router();
 
@@ -69,7 +70,9 @@ guestRouter.get('/profile/photo', asyncHandler(async (_req, res) => {
 }));
 
 // GET /api/categories — the treatments on the landing page, each with the
-// price list (zones) the guest sees after picking one.
+// price list (zones) the guest sees after picking one. Zones come most-booked
+// first, so the ones most guests are after sit at the top of the list; Mariam's
+// own order breaks ties and places zones nobody has booked lately.
 guestRouter.get('/categories', asyncHandler(async (_req, res) => {
   const { rows: categories } = await pool.query(
     `SELECT id, slug, name_en, name_ru, name_hy,
@@ -83,7 +86,9 @@ guestRouter.get('/categories', asyncHandler(async (_req, res) => {
             s.duration_minutes, s.price_amd, c.is_hourly
      FROM services s
      JOIN service_categories c ON c.id = s.category_id
-     WHERE s.is_active = true ORDER BY s.sort_order, s.id`
+     LEFT JOIN (${RECENT_BOOKINGS_SQL}) pop ON pop.service_id = s.id
+     WHERE s.is_active = true
+     ORDER BY COALESCE(pop.recent_bookings, 0) DESC, s.sort_order, s.id`
   );
 
   const byCategory = new Map(categories.map((c) => [c.id, []]));
@@ -110,7 +115,9 @@ guestRouter.get('/services', asyncHandler(async (_req, res) => {
             s.duration_minutes, s.price_amd, c.is_hourly
      FROM services s
      JOIN service_categories c ON c.id = s.category_id
-     WHERE s.is_active = true ORDER BY s.sort_order, s.id`
+     LEFT JOIN (${RECENT_BOOKINGS_SQL}) pop ON pop.service_id = s.id
+     WHERE s.is_active = true
+     ORDER BY COALESCE(pop.recent_bookings, 0) DESC, s.sort_order, s.id`
   );
   res.json(rows);
 }));

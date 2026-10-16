@@ -21,6 +21,7 @@ import {
   toCamel,
 } from '../services/profile.js';
 import { notifyGuest } from '../services/guestNotifications.js';
+import { RECENT_BOOKINGS_SQL } from '../lib/popularity.js';
 
 export const adminRouter = Router();
 
@@ -318,9 +319,11 @@ adminRouter.get(
   '/services',
   asyncHandler(async (_req, res) => {
     const { rows } = await pool.query(
-      `SELECT ${SERVICE_COLUMNS_WITH_MODE}
+      `SELECT ${SERVICE_COLUMNS_WITH_MODE},
+              COALESCE(pop.recent_bookings, 0) AS recent_bookings
        FROM services s
        JOIN service_categories c ON c.id = s.category_id
+       LEFT JOIN (${RECENT_BOOKINGS_SQL}) pop ON pop.service_id = s.id
        ORDER BY s.sort_order, s.id`
     );
     res.json(rows);
