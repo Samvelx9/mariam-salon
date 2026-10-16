@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { api } from '../api.js';
+import ConfirmInline from './ConfirmInline.jsx';
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
@@ -37,6 +38,20 @@ const SECTIONS = [
   },
 ];
 
+// Unsaved edits outlive the screen: switching tabs unmounts it, and coming
+// back to an emptied form would quietly throw away a half-written about text.
+// Module scope keeps the draft for the session; a reload is caught by the
+// beforeunload prompt below instead.
+let unsavedDraft = null;
+
+// Everything on the form except the photo, which saves itself on upload.
+const editableKeys = (obj) => Object.keys(obj).filter((key) => key !== 'photoVersion');
+
+function isDirty(form, profile) {
+  if (!profile) return false;
+  return editableKeys({ ...form, ...profile }).some((key) => (form[key] ?? '') !== (profile[key] ?? ''));
+}
+
 const LANG_SUFFIX = [
   { suffix: 'Hy', labelKey: 'inArmenian' },
   { suffix: 'Ru', labelKey: 'inRussian' },
@@ -50,14 +65,16 @@ export default function ProfileScreen({ T, onAuthError }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
+  const [confirmingPhotoRemoval, setConfirmingPhotoRemoval] = useState(false);
   const fileInputRef = useRef(null);
+  const dirty = isDirty(form, profile);
 
   async function load() {
     setLoading(true);
     try {
       const data = await api.getProfile();
       setProfile(data);
-      setForm(data);
+      setForm(unsavedDraft ? { ...unsavedDraft, photoVersion: data.photoVersion } : data);
     } catch (err) {
       if (!onAuthError(err)) setError('genericError');
     } finally {
@@ -69,6 +86,26 @@ export default function ProfileScreen({ T, onAuthError }) {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    unsavedDraft = dirty ? form : null;
+  }, [dirty, form]);
+
+  // "Saved" is a confirmation, not a state — it shows briefly, then the bar goes.
+  useEffect(() => {
+    if (!saved) return undefined;
+    const timer = setTimeout(() => setSaved(false), 2500);
+    return () => clearTimeout(timer);
+  }, [saved]);
+
+  // Closing or reloading the tab with edits pending gets the browser's own
+  // "leave site?" prompt — the one place a native dialog is the only option.
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const onBeforeUnload = (event) => event.preventDefault();
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -121,6 +158,7 @@ export default function ProfileScreen({ T, onAuthError }) {
   }
 
   async function removePhoto() {
+    setConfirmingPhotoRemoval(false);
     setSaving(true);
     setError(null);
     try {
@@ -187,12 +225,22 @@ export default function ProfileScreen({ T, onAuthError }) {
               <button className="btn-primary" onClick={() => fileInputRef.current?.click()} disabled={saving}>
                 {profile?.photoVersion ? T.profileReplacePhoto : T.profileChoosePhoto}
               </button>
-              {profile?.photoVersion && (
-                <button className="btn-danger-outline" onClick={removePhoto} disabled={saving}>
+              {profile?.photoVersion && !confirmingPhotoRemoval && (
+                <button className="btn-danger-outline" onClick={() => setConfirmingPhotoRemoval(true)} disabled={saving}>
                   {T.profileRemovePhoto}
                 </button>
               )}
             </div>
+            {confirmingPhotoRemoval && (
+              <ConfirmInline
+                T={T}
+                message={T.confirmDeletePhoto}
+                confirmLabel={T.confirmRemoveBtn}
+                onConfirm={removePhoto}
+                onCancel={() => setConfirmingPhotoRemoval(false)}
+                busy={saving}
+              />
+            )}
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.profilePhotoHint}</span>
           </div>
         </div>
@@ -237,22 +285,37 @@ export default function ProfileScreen({ T, onAuthError }) {
         </div>
       ))}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <button className="btn-primary" onClick={save} disabled={saving}>
-          {T.saveBtn}
-        </button>
-        {saved && <span style={{ fontSize: 13, color: 'var(--sage)' }}>{T.profileSaved}</span>}
-      </div>
+      {/* The form is long and Save used to sit only at its foot. The bar rides
+          along at the bottom of the window whenever there's something to save,
+          and says so once it's done. */}
+      {(dirty || saved) && (
+        <div className="save-bar">
+          {dirty ? (
+            <>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{T.unsavedChanges}</span>
+              <button className="btn-primary" onClick={save} disabled={saving}>
+                {T.saveBtn}
+              </button>
+            </>
+          ) : (
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sage)' }}>{T.profileSaved}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function Field({ label, value, onChange, multiline }) {
+  const id = useId();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</label>
+      <label htmlFor={id} style={{ fontSize: 12, color: 'var(--muted)' }}>
+        {label}
+      </label>
       {multiline ? (
         <textarea
+          id={id}
           className="field-input"
           rows={5}
           value={value}
@@ -260,7 +323,7 @@ function Field({ label, value, onChange, multiline }) {
           style={{ resize: 'vertical', lineHeight: 1.6 }}
         />
       ) : (
-        <input className="field-input" value={value} onChange={(e) => onChange(e.target.value)} />
+        <input id={id} className="field-input" value={value} onChange={(e) => onChange(e.target.value)} />
       )}
     </div>
   );

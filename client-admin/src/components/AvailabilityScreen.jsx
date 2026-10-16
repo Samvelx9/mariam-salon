@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { WEEKDAY_FULL, parseLocalDate, formatDate } from '../i18n.js';
+import ConfirmInline from './ConfirmInline.jsx';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -19,6 +20,7 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
   const [error, setError] = useState(null);
   const [newBlock, setNewBlock] = useState({ date: '', allDay: true, startTime: '10:00', endTime: '11:00', note: '' });
   const [addingBlock, setAddingBlock] = useState(false);
+  const [confirmingBlockId, setConfirmingBlockId] = useState(null);
   // The week is edited as one unit: `draft` holds the seven rows while editing
   // and is null the rest of the time, so `hours` always shows what's saved.
   const [draft, setDraft] = useState(null);
@@ -126,13 +128,20 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
   }
 
   async function removeBlock(id) {
+    setError(null);
     try {
       await api.deleteBlock(id);
       await load();
     } catch (err) {
       if (!onAuthError(err)) setError('genericError');
+    } finally {
+      setConfirmingBlockId(null);
     }
   }
+
+  // Monday first, as on the guest page and the bookings calendar — the
+  // database keys days by JS number, where 0 is Sunday.
+  const weekRows = [...(draft ?? hours)].sort((a, b) => ((a.day_of_week + 6) % 7) - ((b.day_of_week + 6) % 7));
 
   if (loading) return <p style={{ color: 'var(--muted)' }}>{T.loading}</p>;
 
@@ -159,7 +168,7 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
             </div>
           )}
         </div>
-        {(draft ?? hours).map((row) => (
+        {weekRows.map((row) => (
           <div
             key={row.day_of_week}
             className="card"
@@ -261,8 +270,8 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
 
         <form onSubmit={submitBlock} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.blockDateLabel}</label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.blockDateLabel}</span>
               <input
                 className="field-input"
                 type="date"
@@ -270,7 +279,7 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
                 onChange={(e) => setNewBlock({ ...newBlock, date: e.target.value })}
                 required
               />
-            </div>
+            </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginTop: 20 }}>
               <input
                 type="checkbox"
@@ -281,35 +290,35 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
             </label>
             {!newBlock.allDay && (
               <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.startTimeLabel}</label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.startTimeLabel}</span>
                   <input
                     className="field-input"
                     type="time"
                     value={newBlock.startTime}
                     onChange={(e) => setNewBlock({ ...newBlock, startTime: e.target.value })}
                   />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.endTimeLabel}</label>
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.endTimeLabel}</span>
                   <input
                     className="field-input"
                     type="time"
                     value={newBlock.endTime}
                     onChange={(e) => setNewBlock({ ...newBlock, endTime: e.target.value })}
                   />
-                </div>
+                </label>
               </>
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.blockNoteLabel}</label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.blockNoteLabel}</span>
               <input
                 className="field-input"
                 placeholder={T.blockNotePlaceholder}
                 value={newBlock.note}
                 onChange={(e) => setNewBlock({ ...newBlock, note: e.target.value })}
               />
-            </div>
+            </label>
           </div>
           <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start' }} disabled={addingBlock}>
             {T.addBlockBtn}
@@ -329,9 +338,19 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
                   </span>
                   {b.note && <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{b.note}</span>}
                 </div>
-                <button className="btn-danger-outline" onClick={() => removeBlock(b.id)}>
-                  {T.deleteBtn}
-                </button>
+                {confirmingBlockId === b.id ? (
+                  <ConfirmInline
+                    T={T}
+                    message={T.confirmDeleteBlock}
+                    confirmLabel={T.confirmRemoveBtn}
+                    onConfirm={() => removeBlock(b.id)}
+                    onCancel={() => setConfirmingBlockId(null)}
+                  />
+                ) : (
+                  <button className="btn-danger-outline" onClick={() => setConfirmingBlockId(b.id)}>
+                    {T.deleteBtn}
+                  </button>
+                )}
               </div>
             ))}
           </div>

@@ -205,8 +205,8 @@ export default function DashboardScreen({ T, lang, onAuthError }) {
             <h3 style={{ fontSize: 16, fontWeight: 600 }}>{T.addExpense}</h3>
             <form onSubmit={submitExpense} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.categoryLabel}</label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.categoryLabel}</span>
                   <input
                     className="field-input"
                     list="expense-categories"
@@ -219,33 +219,33 @@ export default function DashboardScreen({ T, lang, onAuthError }) {
                       <option key={c} value={c} />
                     ))}
                   </datalist>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.descriptionLabel}</label>
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.descriptionLabel}</span>
                   <input
                     className="field-input"
                     value={newExpense.description}
                     onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
                   />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.amountLabel}</label>
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.amountLabel}</span>
                   <input
                     className="field-input"
                     type="number"
                     value={newExpense.amountAmd}
                     onChange={(e) => setNewExpense({ ...newExpense, amountAmd: e.target.value })}
                   />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.dateLabel}</label>
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{T.dateLabel}</span>
                   <input
                     className="field-input"
                     type="date"
                     value={newExpense.date}
                     onChange={(e) => setNewExpense({ ...newExpense, date: e.target.value })}
                   />
-                </div>
+                </label>
               </div>
               <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start' }} disabled={adding}>
                 {T.addBtn}
@@ -352,10 +352,10 @@ export default function DashboardScreen({ T, lang, onAuthError }) {
 
 function ExpenseField({ label, value, onChange, type = 'text' }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</label>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</span>
       <input className="field-input" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
-    </div>
+    </label>
   );
 }
 

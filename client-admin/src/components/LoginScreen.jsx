@@ -21,12 +21,32 @@ export default function LoginScreen({ T, lang, setLang, login, loginError, loggi
           <h2 style={{ fontSize: 22, fontWeight: 500, textAlign: 'center' }}>{T.loginTitle}</h2>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.usernameLabel}</label>
-            <input className="field-input" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+            <label htmlFor="login-username" style={{ fontSize: 12, color: 'var(--muted)' }}>
+              {T.usernameLabel}
+            </label>
+            <input
+              id="login-username"
+              name="username"
+              autoComplete="username"
+              className="field-input"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoFocus
+            />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 12, color: 'var(--muted)' }}>{T.passwordLabel}</label>
-            <input className="field-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <label htmlFor="login-password" style={{ fontSize: 12, color: 'var(--muted)' }}>
+              {T.passwordLabel}
+            </label>
+            <input
+              id="login-password"
+              name="password"
+              autoComplete="current-password"
+              className="field-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </div>
 
           {loginError && <p style={{ margin: 0, fontSize: 12.5, color: 'var(--terracotta)' }}>{T.loginError}</p>}

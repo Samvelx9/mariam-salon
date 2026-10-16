@@ -30,7 +30,9 @@ export default function AdminLayout({ T, lang, setLang, tab, setTab, onLogout, c
         </div>
       </div>
 
-      <div style={{ borderBottom: '1px solid var(--line)', background: 'var(--surface)' }}>
+      {/* The tabs stay in reach on long screens (dashboard, home page) instead
+          of scrolling away; content passes underneath the frosted bar. */}
+      <div className="tab-bar">
         <div className="admin-content" style={{ padding: 0, display: 'flex', gap: 4, overflowX: 'auto' }}>
           {TABS.map((t) => (
             <button
