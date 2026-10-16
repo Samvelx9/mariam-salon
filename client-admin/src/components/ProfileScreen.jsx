@@ -87,9 +87,12 @@ export default function ProfileScreen({ T, onAuthError }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Not until the profile has loaded: on mount the form is still empty, and
+  // syncing then would wipe the draft before load() can restore it.
   useEffect(() => {
+    if (loading) return;
     unsavedDraft = dirty ? form : null;
-  }, [dirty, form]);
+  }, [loading, dirty, form]);
 
   // "Saved" is a confirmation, not a state — it shows briefly, then the bar goes.
   useEffect(() => {
