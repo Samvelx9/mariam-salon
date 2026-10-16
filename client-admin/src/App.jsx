@@ -43,6 +43,14 @@ function storedLang() {
 
 export default function App() {
   const [lang, setLangState] = useState(storedLang);
+
+  // Screen readers pick a voice, and browsers decide whether to offer
+  // translation, from <html lang> — so it follows the language on screen
+  // rather than staying at index.html's "en".
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   const [tab, setTabState] = useState(tabFromUrl);
   const auth = useAdminAuth();
 

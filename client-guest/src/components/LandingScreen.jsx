@@ -132,6 +132,7 @@ export default function LandingScreen(f) {
           </button>
           <a
             href="#"
+            className="hit-expand"
             onClick={(e) => {
               e.preventDefault();
               goToLookup();
