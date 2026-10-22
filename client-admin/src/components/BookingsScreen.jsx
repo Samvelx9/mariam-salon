@@ -53,11 +53,12 @@ const STATUS_KEY = {
   cancelled: 'statusCancelled',
   no_show: 'statusNoShow',
 };
+// The same colours the week view gives each status (index.css).
 const STATUS_COLOR = {
-  confirmed: 'var(--sage)',
-  completed: 'var(--ink)',
-  cancelled: 'var(--terracotta)',
-  no_show: 'var(--muted)',
+  confirmed: 'var(--status-confirmed)',
+  completed: 'var(--status-done)',
+  cancelled: 'var(--status-off)',
+  no_show: 'var(--status-off)',
 };
 
 const EMPTY_BOOKING_FORM = {
@@ -467,7 +468,8 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
                 T={T}
                 lang={lang}
                 columns={weekColumns}
-                bookings={bookings.filter((b) => b.status !== 'cancelled' && weekDates.includes(dateKeyOf(b)))}
+                bookings={bookings.filter((b) => weekDates.includes(dateKeyOf(b)))}
+                colorBy="status"
                 onPickBooking={openEditBooking}
                 onPickSlot={
                   editingBookingId === null && services.length > 0
