@@ -5,9 +5,13 @@ import { splitYerevanDateTime } from 'salon-shared/time';
 import { DURATION_CHOICES, MIN_BOOKING_MINUTES, formatDuration } from 'salon-shared/booking';
 import { isDateStr, isMonthStr, routeParam, setRouteParams } from '../route.js';
 import ConfirmInline from './ConfirmInline.jsx';
+import DayTimeline, { parseDate } from './DayTimeline.jsx';
 
+// Today in Yerevan — not the browser's or UTC's date, which differ from
+// Mariam's around midnight.
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const { dateObj } = splitYerevanDateTime(new Date().toISOString());
+  return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
 }
 function addDays(dateStr, days) {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -28,6 +32,13 @@ function daysInMonth(year, month) {
 // weekday tables are Sunday-first (matching Postgres' day_of_week), so this
 // maps a column index onto them.
 const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
+
+// The Monday of the week a date falls in — the week view is that week.
+function weekStart(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return addDays(dateStr, -((weekday + 6) % 7));
+}
 
 // A booking's Yerevan calendar day as 'YYYY-MM-DD' — the same key the day
 // cells and the day list are grouped by.
@@ -63,7 +74,8 @@ const EMPTY_BOOKING_FORM = {
 export default function BookingsScreen({ T, lang, onAuthError }) {
   // The calendar position starts from the URL, so a reload reopens the same
   // month, day and filter — see route.js.
-  const [view, setView] = useState(() => routeParam('view', (v) => v === 'year', 'month')); // 'month' | 'year'
+  // The week first: what's on now, a column per day. 'week' | 'month' | 'year'.
+  const [view, setView] = useState(() => routeParam('view', (v) => v === 'year' || v === 'month', 'week'));
   const [cursor, setCursor] = useState(() => routeParam('month', isMonthStr, todayStr().slice(0, 7)) + '-01');
   const [selectedDate, setSelectedDate] = useState(() =>
     routeParam('day', (d) => isDateStr(d) && d.slice(0, 7) === cursor.slice(0, 7), todayStr())
@@ -94,7 +106,9 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
     ? { from: addDays(todayStr(), -365), to: addDays(todayStr(), 365) }
     : view === 'year'
       ? { from: monthStart(year, 1), to: `${year}-12-31` }
-      : { from: monthStart(year, month), to: `${year}-${pad(month)}-${daysInMonth(year, month)}` };
+      : view === 'week'
+        ? { from: weekStart(selectedDate), to: addDays(weekStart(selectedDate), 6) }
+        : { from: monthStart(year, month), to: `${year}-${pad(month)}-${daysInMonth(year, month)}` };
 
   async function load() {
     setLoading(true);
@@ -121,7 +135,7 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   useEffect(() => {
     const today = todayStr();
     setRouteParams({
-      view: view === 'year' ? 'year' : null,
+      view: view === 'week' ? null : view,
       month: cursor.slice(0, 7) === today.slice(0, 7) ? null : cursor.slice(0, 7),
       day: selectedDate === today ? null : selectedDate,
       status: statusFilter,
@@ -142,6 +156,52 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The week's columns, each with its weekday's hours and its day's blocks, so
+  // time off is drawn hatched.
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart(selectedDate), i));
+  const [availability, setAvailability] = useState(null);
+  useEffect(() => {
+    if (view !== 'week') return;
+    let cancelled = false;
+    Promise.all([api.getWeeklyHours(), api.getBlocks(range.from, range.to)])
+      .then(([hours, blocks]) => !cancelled && setAvailability({ hours, blocks }))
+      .catch((err) => !cancelled && onAuthError(err));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, range.from, range.to]);
+  const weekColumns = weekDates.map((d) => ({
+    key: d,
+    masterId: null,
+    date: d,
+    label: `${WEEKDAY_SHORT[lang][parseDate(d).getDay()]} ${parseDate(d).getDate()}`,
+    selected: d === selectedDate,
+    hours: availability?.hours.find((h) => h.day_of_week === parseDate(d).getDay()) ?? null,
+    blocks: availability?.blocks.filter((b) => b.date === d) ?? [],
+  }));
+
+  // Opens a day: the list under the calendar, and the week it's in.
+  function openDay(d) {
+    setConfirming(false);
+    setCursor(d.slice(0, 7) + '-01');
+    setSelectedMonth(Number(d.slice(5, 7)));
+    setSelectedDate(d);
+  }
+
+  // A booking dropped in the week view: a new day and time. The database still
+  // refuses an overlap the screen didn't foresee.
+  async function moveBooking(booking, { time, date }) {
+    setError(null);
+    try {
+      await api.updateBooking(booking.id, { date, time });
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'slot_taken') setError('slotTakenError');
+      else if (!onAuthError(err)) setError('genericError');
+    }
+    await load();
+  }
 
   async function changeStatus(id, status) {
     try {
@@ -202,11 +262,13 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
     }
   }
 
-  function openAddBooking() {
+  // `prefill` comes from free time clicked in the week view: that day and time.
+  function openAddBooking(prefill = {}) {
     setBookingForm({
       ...EMPTY_BOOKING_FORM,
       items: [],
-      date: cleanupView ? todayStr() : selectedDate || todayStr(),
+      date: prefill.date ?? (cleanupView ? todayStr() : selectedDate || todayStr()),
+      ...(prefill.time ? { time: prefill.time } : {}),
     });
     setError(null);
     setEditingBookingId('new');
@@ -216,6 +278,8 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   // without touching anything changes nothing.
   function openEditBooking(booking) {
     const { dateObj, time } = splitYerevanDateTime(booking.start_time);
+    // The form opens in that day's list, so that day is the one open.
+    if (!cleanupView && view !== 'year') openDay(dateKeyOf(booking));
     setBookingForm({
       items: (booking.items ?? []).map((item) => ({
         serviceId: String(item.service_id),
@@ -229,6 +293,11 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
     });
     setError(null);
     setEditingBookingId(booking.id);
+    // Opened from the week view, the form is down in the list: bring it up.
+    requestAnimationFrame(() => {
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      document.getElementById(`booking-${booking.id}`)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    });
   }
 
   async function saveBooking() {
@@ -261,9 +330,8 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
         await api.createBooking(payload);
         // Jump to wherever the new booking landed, so it's visible straight away.
         setStatusFilter('');
-        setView('month');
-        setCursor(payload.date.slice(0, 7) + '-01');
-        setSelectedDate(payload.date);
+        if (view === 'year') setView('month');
+        openDay(payload.date);
       } else {
         await api.updateBooking(editingBookingId, payload);
       }
@@ -294,6 +362,10 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
   }
 
   function stepCursor(delta) {
+    if (view === 'week') {
+      openDay(addDays(selectedDate, delta * 7));
+      return;
+    }
     if (view === 'year') {
       // A new year opens on today's month when today is in it, else January.
       const y = year + delta;
@@ -307,7 +379,12 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
     else goToMonth(year, next);
   }
 
-  const periodLabel = view === 'year' ? String(year) : `${MONTH_FULL[lang][month - 1]} ${year}`;
+  const periodLabel =
+    view === 'year'
+      ? String(year)
+      : view === 'week'
+        ? `${formatDate(parseDay(weekDates[0]), lang)} – ${formatDate(parseDay(weekDates[6]), lang)}`
+        : `${MONTH_FULL[lang][month - 1]} ${year}`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -316,28 +393,24 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {!cleanupView && (
             <>
-              <button
-                className="btn-outline"
-                onClick={() => setView(view === 'year' ? 'month' : 'year')}
-                aria-pressed={view === 'year'}
-              >
-                {view === 'year' ? T.viewMonth : T.viewYear}
-              </button>
+              <div role="group" aria-label={T.viewLabel} style={{ display: 'flex', gap: 4 }}>
+                {[['week', T.viewWeek], ['month', T.viewMonth], ['year', T.viewYear]].map(([key, label]) => (
+                  <button
+                    key={key}
+                    className={view === key ? 'btn-primary' : 'btn-outline'}
+                    onClick={() => setView(key)}
+                    aria-pressed={view === key}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <button className="btn-outline" onClick={() => stepCursor(-1)} aria-label={T.prevWeek}>
                 ←
               </button>
               <span style={{ minWidth: 140, textAlign: 'center', fontSize: 14, fontWeight: 600 }}>{periodLabel}</span>
               <button className="btn-outline" onClick={() => stepCursor(1)} aria-label={T.nextWeek}>
                 →
-              </button>
-              <button
-                className="btn-outline"
-                onClick={() => {
-                  goToMonth(Number(todayStr().slice(0, 4)), Number(todayStr().slice(5, 7)));
-                  setView('month');
-                }}
-              >
-                {T.today}
               </button>
             </>
           )}
@@ -354,7 +427,7 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
               </option>
             ))}
           </select>
-          <button className="btn-primary" onClick={openAddBooking} disabled={editingBookingId !== null || services.length === 0}>
+          <button className="btn-primary" onClick={() => openAddBooking()} disabled={editingBookingId !== null || services.length === 0}>
             {T.addBookingBtn}
           </button>
         </div>
@@ -382,12 +455,32 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
 
       {cleanupView && <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>{T.cancelledViewNote}</p>}
 
-      {loading ? (
+      {/* The week view stays up while the next week loads, rather than
+          flashing away and back. */}
+      {loading && view !== 'week' ? (
         <p style={{ color: 'var(--muted)' }}>{T.loading}</p>
       ) : (
         <>
           {!cleanupView &&
-            (view === 'year' ? (
+            (view === 'week' ? (
+              <DayTimeline
+                T={T}
+                lang={lang}
+                columns={weekColumns}
+                bookings={bookings.filter((b) => b.status !== 'cancelled' && weekDates.includes(dateKeyOf(b)))}
+                onPickBooking={openEditBooking}
+                onPickSlot={
+                  editingBookingId === null && services.length > 0
+                    ? (_master, time, date) => openAddBooking({ time, date })
+                    : null
+                }
+                // A day's header opens that day's list below.
+                onPickDate={openDay}
+                onMoveBooking={editingBookingId === null ? moveBooking : null}
+                canTake={() => true}
+                hint={T.timelineDragHint}
+              />
+            ) : view === 'year' ? (
               <YearGrid
                 T={T}
                 lang={lang}
@@ -451,12 +544,12 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
 
           {listed.length === 0 ? (
             <p style={{ color: 'var(--muted)', fontSize: 13.5 }}>
-              {cleanupView ? T.noBookingsThisPeriod : view === 'year' ? T.noBookingsThisMonth : T.noBookingsThisDay}
+              {loading ? T.loading : cleanupView ? T.noBookingsThisPeriod : view === 'year' ? T.noBookingsThisMonth : T.noBookingsThisDay}
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {listed.map((b) => (
-                <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div key={b.id} id={`booking-${b.id}`} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <BookingRow
                     T={T}
                     lang={lang}
