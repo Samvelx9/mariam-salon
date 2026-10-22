@@ -9,7 +9,9 @@ import { dayLabel } from '../i18n.js';
 //
 // A confirmed booking can be dragged to another time or day (`onMoveBooking`);
 // a spot that would overlap another booking refuses the drop. A press that
-// barely moves is still a click. (The same timeline as BeautyBook's, where
+// barely moves is still a click. A drop only proposes the move: it waits,
+// outlined where it was dropped, until Move is pressed (Cancel, Escape or
+// another drag put it back). (The same timeline as BeautyBook's, where
 // columns can also be masters — `masterId`, `canTake` and the day strip.)
 //
 // `columns`: [{ key, masterId, date, label, hours, blocks, selected }] —
@@ -88,6 +90,18 @@ export default function DayTimeline({
     dragRef.current = next;
     setDragState(next);
   };
+  // A drop waiting to be confirmed: the booking, the column and start it would
+  // move to, and its length. Nothing is saved until Move.
+  const [pending, setPending] = useState(null);
+  // A different week or day on screen drops the question.
+  const screenKey = columns.map((c) => c.key + c.date).join();
+  useEffect(() => setPending(null), [screenKey]);
+  useEffect(() => {
+    if (!pending) return undefined;
+    const onKey = (e) => e.key === 'Escape' && setPending(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pending]);
   // A drag ends with a click; that click mustn't open a form. It comes straight
   // after the pointer is released, so the flag only lives until then.
   const justDragged = useRef(false);
@@ -132,6 +146,7 @@ export default function DayTimeline({
     const s = spans.get(booking.id);
     // Keeps the moves coming to this block while it's on screen; the window
     // follows the pointer either way (see below).
+    setPending(null);
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -141,6 +156,7 @@ export default function DayTimeline({
       booking,
       // Where it was: compared at the drop, whatever is on screen by then.
       origin: { date: s.date, start: s.start, masterId: column.masterId },
+      originLabel: masterLabelOf(column),
       length: s.end - s.start,
       grabMin: (event.clientY - rect.top) / PX_PER_MIN + from - s.start,
       x: event.clientX,
@@ -218,8 +234,19 @@ export default function DayTimeline({
     if (!target?.ok) return;
     const { column, start } = target;
     if (column.date !== origin.date || start !== origin.start || column.masterId !== origin.masterId) {
-      onMoveBooking(booking, { masterId: column.masterId, time: toTime(start), date: column.date });
+      setPending({ booking, origin, column, start, length: drag.length, originLabel: drag.originLabel });
     }
+  }
+
+  // "Fri 23 10:30", and with a column per master, " · Aram".
+  const whenWhere = (date, start, masterLabel) =>
+    `${dayLabel(parseDate(date), 2, lang)} ${parseDate(date).getDate()} ${toTime(start)}${masterLabel ? ` · ${masterLabel}` : ''}`;
+  const masterLabelOf = (column) => (column.masterId === null ? '' : column.label);
+
+  function confirmMove() {
+    const { booking, column, start } = pending;
+    setPending(null);
+    onMoveBooking(booking, { masterId: column.masterId, time: toTime(start), date: column.date });
   }
 
   // While a booking is held, the pointer is followed on the whole window: the
@@ -248,7 +275,19 @@ export default function DayTimeline({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
     {/* One row, the same height either way so the timeline never jumps under
         the pointer: the hint, or while dragging, the days to hold it over. */}
-    {chipDates.length === 0 ? (
+    {pending && !dragging ? (
+      <div role="status" style={{ minHeight: 46, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13.5 }}>
+          {T.moveQuestion(
+            pending.booking.customer_name,
+            whenWhere(pending.origin.date, pending.origin.start, pending.originLabel),
+            whenWhere(pending.column.date, pending.start, masterLabelOf(pending.column))
+          )}
+        </span>
+        <button className="btn-primary" onClick={confirmMove}>{T.moveBtn}</button>
+        <button className="btn-outline" onClick={() => setPending(null)}>{T.cancelBtn}</button>
+      </div>
+    ) : chipDates.length === 0 ? (
       hint && (
         <div style={{ minHeight: 46, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{hint}</span>
@@ -369,7 +408,12 @@ export default function DayTimeline({
         {columns.map((c) => {
           const own = bookings.filter(inColumn(c));
           const live = !dragging || dragging.live.has(c.key);
-          const target = dragging?.target?.column.key === c.key ? dragging.target : null;
+          const target =
+            dragging?.target?.column.key === c.key
+              ? { ...dragging.target, length: dragging.length }
+              : !dragging && pending?.column.key === c.key
+                ? { start: pending.start, ok: true, length: pending.length }
+                : null;
           return (
             <div
               key={c.key}
@@ -447,7 +491,7 @@ export default function DayTimeline({
                       borderLeft: `4px solid ${tone.line}`,
                       // A no-show keeps its place, faded; it still held the time.
                       // The one being dragged stays faint where it was.
-                      opacity: dragging?.booking.id === b.id ? 0.3 : !byStatus && b.status === 'no_show' ? 0.55 : 1,
+                      opacity: (dragging ?? pending)?.booking.id === b.id ? 0.3 : !byStatus && b.status === 'no_show' ? 0.55 : 1,
                       cursor: onMoveBooking && b.status === 'confirmed' ? 'grab' : 'pointer',
                       color: 'var(--ink)',
                     }}
@@ -496,10 +540,11 @@ export default function DayTimeline({
                     zIndex: 3,
                     top: (target.start - from) * PX_PER_MIN + 1,
                     // Room for the reason too, on a short booking.
-                    height: Math.max(dragging.length * PX_PER_MIN - 2, target.ok ? 20 : 46),
+                    height: Math.max(target.length * PX_PER_MIN - 2, target.ok ? 20 : 46),
                     borderRadius: 7,
-                    border: `2px dashed ${target.ok ? masterColor(c.color) : 'var(--terracotta)'}`,
-                    background: target.ok ? masterTint(c.color) : 'var(--terracotta-light)',
+                    // In the colours the booking will have there.
+                    border: `2px dashed ${!target.ok ? 'var(--terracotta)' : byStatus ? statusColor((dragging ?? pending).booking.status) : masterColor(c.color)}`,
+                    background: !target.ok ? 'var(--terracotta-light)' : byStatus ? statusTint((dragging ?? pending).booking.status) : masterTint(c.color),
                     padding: '3px 7px',
                     fontSize: 11.5,
                     fontWeight: 700,
@@ -507,7 +552,7 @@ export default function DayTimeline({
                     pointerEvents: 'none',
                   }}
                 >
-                  {toTime(target.start)}–{toTime(target.start + dragging.length)}
+                  {toTime(target.start)}–{toTime(target.start + target.length)}
                   {!target.ok && <span style={{ display: 'block', fontWeight: 600, color: 'var(--terracotta)' }}>{T[target.refusal]}</span>}
                 </div>
               )}
