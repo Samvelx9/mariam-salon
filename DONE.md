@@ -537,10 +537,11 @@ clean-up work earlier the same day.
   client.
 - **Drag and drop**: a confirmed booking drags to another time or day; a spot that would
   overlap another booking refuses the drop (the server checks too). A press that barely
-  moves is still a click. Works by mouse and touch. **A drop asks first**: the booking
-  waits, outlined where it was dropped, under "Move Client from Fri 23 10:00 to Mon 19
-  12:00? [Move] [Cancel]" in place of the hint; only Move saves, and Cancel, Escape,
-  another drag or another week put it back.
+  moves is still a click. Works by mouse and touch. **A drop asks first**: a pop-up,
+  "Are you sure you want to move this booking?", shows the client and zones, from and to
+  (e.g. Fri 23, 10:00 → Mon 19, 12:00), with the new spot outlined behind it. Only Move
+  saves; Cancel (focused, so Enter alone never moves anything), Escape or a click outside
+  put it back.
 - **Status colours** on the week: confirmed yellow, completed green (✓), cancelled or
   no-show red, with a legend beside the hint. Cancelled bookings now show on the week,
   struck through; they can't be dragged and don't block a drop, and when a new booking
