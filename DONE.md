@@ -513,3 +513,41 @@ clean-up work earlier the same day.
 - Verified: the domain, `/admin/`, `/api/health` and both redirects unchanged; bare IP
   and `Host: mariamik.info` now get nothing; the ACME challenge path still returns 200
   over the real domain, so renewals are unaffected.
+
+## Booking rules, week view, drag and drop, status colours (2026-10-23)
+- **Mariam sets when guests may book** (Availability → "When clients can book"; each
+  choice saves as soon as it's picked):
+  - **Minimum notice**: none, 15/30/45 minutes, 1–12 hours, 1 or 2 days. Was a fixed
+    90 minutes, still the default.
+  - **How far ahead**: 1, 2 or 3 weeks, 1, 2 or 3 months. Was a fixed 7 days, still the
+    default.
+  - Both live on `salon_profile` (migration `1789390653160_booking-rules.js`) and reach
+    the guest page with `GET /api/profile`. The server refuses a booking or reschedule
+    inside the notice (`too_soon`) or past the window (`too_far`), not just the picker.
+    The guest page states the notice in words on the slot picker and details screen;
+    past a week the picker shows the month under the day number. Bookings Mariam enters
+    herself ignore both.
+  - Brought over from BeautyBook. QA suite gained a test for the endpoint, the profile,
+    the slot range and both refusals; all 10 passed against a local server.
+- **Bookings opens on a Week view** (next to Month and Year): Monday to Sunday side by
+  side as a timeline. Hours outside work, lunch, days off and blocked stretches are
+  hatched; today has a now-line. Clicking a booking opens it in that day's list; clicking
+  free time starts a booking for that day and time; a day's header opens its list. Arrows
+  step a week. A short visit (Mariam's 5-minute zones) shows as one line, start and
+  client.
+- **Drag and drop**: a confirmed booking drags to another time or day; a spot that would
+  overlap another booking refuses the drop (the server checks too). A press that barely
+  moves is still a click. Works by mouse and touch.
+- **Status colours** on the week: confirmed yellow, completed green (✓), cancelled or
+  no-show red, with a legend beside the hint. Cancelled bookings now show on the week,
+  struck through; they can't be dragged and don't block a drop, and when a new booking
+  takes a cancelled one's time the two share the column. The status words in the list
+  use the same colours.
+- **Today button removed** — the screen already opens on today and the arrows move from
+  there. "Today" itself is now Yerevan's date; it was UTC's, which opened the previous
+  day between midnight and 4 a.m.
+- **Verified** locally in Chrome on a throwaway database with test bookings in every
+  status (week layout, drag Fri 10:00 → Mon 11:00, overlap refusal, colours), console
+  clean. Live: `/`, `/admin/` 200, `/api/health` ok, server on the pushed commit, the
+  migration ran before the deploy, and the live admin bundle carries the new code. Not
+  clicked through on the live admin — that needs Mariam's login.
