@@ -4,7 +4,9 @@ import {
   getActiveService,
   getAvailableSlots,
   isSlotWithinAvailability,
-  CUTOFF_MINUTES,
+  getBookingRules,
+  earliestBookable,
+  lastBookableDate,
 } from '../services/availability.js';
 import { localToUtc, addMinutes } from '../lib/time.js';
 import {
@@ -41,13 +43,14 @@ function bookedMinutes(booking) {
   return Math.round((new Date(booking.end_time) - new Date(booking.start_time)) / 60000);
 }
 
-// GET /api/profile — everything the landing page says about Mariam
+// GET /api/profile — everything the landing page says about Mariam, and when
+// guests may book (the notice the slot picker and details screen mention).
 guestRouter.get('/profile', asyncHandler(async (_req, res) => {
   const row = await getProfileRow();
   if (!row) {
     return res.status(404).json({ error: 'profile_not_found' });
   }
-  res.json(shapeProfile(row));
+  res.json({ ...shapeProfile(row), ...(await getBookingRules()) });
 }));
 
 // GET /api/profile/photo — Mariam's photo, served straight from the database.
@@ -250,8 +253,14 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
   const startTime = localToUtc(date, time);
   const endTime = addMinutes(startTime, resolved.totalMinutes);
 
-  if (startTime < addMinutes(new Date(), CUTOFF_MINUTES)) {
-    return res.status(400).json({ error: 'too_soon', cutoffMinutes: CUTOFF_MINUTES });
+  const rules = await getBookingRules();
+  if (startTime < earliestBookable(rules)) {
+    return res.status(400).json({ error: 'too_soon', minNoticeMinutes: rules.minNoticeMinutes });
+  }
+  // The page only offers days inside the window, but the API is open to
+  // anyone — so the window is enforced here, not just in the picker.
+  if (date > lastBookableDate(rules)) {
+    return res.status(400).json({ error: 'too_far', bookingWindowDays: rules.bookingWindowDays });
   }
 
   // A copy of this same request that got in first is what makes the slot look
@@ -411,8 +420,14 @@ guestRouter.post('/bookings/:id/reschedule', asyncHandler(async (req, res) => {
     });
   }
 
-  if (startTime < addMinutes(new Date(), CUTOFF_MINUTES)) {
-    return res.status(400).json({ error: 'too_soon', cutoffMinutes: CUTOFF_MINUTES });
+  const rules = await getBookingRules();
+  if (startTime < earliestBookable(rules)) {
+    return res.status(400).json({ error: 'too_soon', minNoticeMinutes: rules.minNoticeMinutes });
+  }
+  // The page only offers days inside the window, but the API is open to
+  // anyone — so the window is enforced here, not just in the picker.
+  if (date > lastBookableDate(rules)) {
+    return res.status(400).json({ error: 'too_far', bookingWindowDays: rules.bookingWindowDays });
   }
 
   if (!(await isSlotWithinAvailability(date, startTime, endTime))) {

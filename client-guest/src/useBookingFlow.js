@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from './api.js';
-import { DEFAULT_LANG, STRINGS } from './i18n.js';
+import { DEFAULT_LANG, STRINGS, setMinNotice } from './i18n.js';
 import { MIN_BOOKING_MINUTES, MAX_BOOKING_MINUTES } from 'salon-shared/booking';
 
 function newRequestKey() {
@@ -39,11 +39,12 @@ const INITIAL_FLOW_STATE = {
   busy: false,
 };
 
+// The answers that mean "pick another time" rather than "something broke":
+// the calendar reloads and the guest chooses again.
+const RETRY_CODES = { slot_taken: 'slotTaken', too_soon: 'tooSoon', too_far: 'tooFar' };
+
 function errorKeyFor(err) {
-  if (err instanceof ApiError && (err.code === 'slot_taken' || err.code === 'too_soon')) {
-    return err.code === 'slot_taken' ? 'slotTaken' : 'tooSoon';
-  }
-  return 'genericError';
+  return (err instanceof ApiError && RETRY_CODES[err.code]) || 'genericError';
 }
 
 export function useBookingFlow() {
@@ -66,7 +67,10 @@ export function useBookingFlow() {
     Promise.allSettled([api.getProfile(), api.getCategories(), api.getHours()])
       .then(([profileResult, categoriesResult, hoursResult]) => {
         if (cancelled) return;
-        if (profileResult.status === 'fulfilled') setProfile(profileResult.value);
+        if (profileResult.status === 'fulfilled') {
+          setProfile(profileResult.value);
+          setMinNotice(profileResult.value.minNoticeMinutes);
+        }
         if (hoursResult.status === 'fulfilled') setHours(hoursResult.value);
         // Profile and hours are decoration — the page still works without
         // them. The treatments are the page's whole point, so only that one
@@ -300,7 +304,7 @@ export function useBookingFlow() {
         telegramOpened: false,
       });
     } catch (err) {
-      if (err instanceof ApiError && (err.code === 'slot_taken' || err.code === 'too_soon')) {
+      if (err instanceof ApiError && RETRY_CODES[err.code]) {
         patch({ busy: false, step: 'calendar', selectedSlot: null, bannerErrorKey: errorKeyFor(err) });
         loadSlots({ durationMinutes: basket.minutes, keepDay: true });
       } else {
@@ -395,7 +399,7 @@ export function useBookingFlow() {
         },
       });
     } catch (err) {
-      if (err instanceof ApiError && (err.code === 'slot_taken' || err.code === 'too_soon')) {
+      if (err instanceof ApiError && RETRY_CODES[err.code]) {
         patch({ busy: false, selectedSlot: null, bannerErrorKey: errorKeyFor(err) });
         loadSlots(flow.activeBooking.serviceId, { excludeBookingId: flow.activeBooking.id });
       } else {

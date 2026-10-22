@@ -566,3 +566,68 @@ test('editing a booking recomputes its length and total, and refuses an overlapp
   assert.equal(unchanged.start_time, first.body.startTime, 'a refused move must leave the booking where it was');
   assert.equal(unchanged.items.length, 2, 'a refused move must leave the zones alone');
 });
+
+// ---------------------------------------------------------------------------
+// When guests may book: Mariam's minimum notice and booking window
+// ---------------------------------------------------------------------------
+
+test('the minimum notice and booking window are Mariam\'s to set, and the API enforces both', async () => {
+  const { body: original } = await adminApi('/admin/availability/booking-rules');
+  assert.ok(Number.isInteger(original.minNoticeMinutes) && Number.isInteger(original.bookingWindowDays));
+  const restore = () =>
+    adminApi('/admin/availability/booking-rules', { method: 'PATCH', body: JSON.stringify(original) });
+
+  try {
+    assert.equal((await api('/admin/availability/booking-rules')).status, 401, 'admin only');
+    for (const body of [{ minNoticeMinutes: 77 }, { bookingWindowDays: 45 }]) {
+      const bad = await adminApi('/admin/availability/booking-rules', { method: 'PATCH', body: JSON.stringify(body) });
+      assert.equal(bad.status, 400);
+    }
+
+    // Two weeks: the picker shows fourteen days, and the guest page says so.
+    const set = await adminApi('/admin/availability/booking-rules', {
+      method: 'PATCH',
+      body: JSON.stringify({ minNoticeMinutes: 1440, bookingWindowDays: 14 }),
+    });
+    assert.deepEqual(set.body, { minNoticeMinutes: 1440, bookingWindowDays: 14 });
+    const { body: profile } = await api('/profile');
+    assert.equal(profile.minNoticeMinutes, 1440);
+    assert.equal(profile.bookingWindowDays, 14);
+    const { body: slots } = await api(`/services/${services[0].id}/slots`);
+    assert.equal(slots.days.length, 14);
+
+    // A day's notice: ten hours from now is too soon, whatever the hours say.
+    const soon = yerevanNowPlusMinutes(600);
+    const tooSoon = await api('/bookings', {
+      method: 'POST',
+      body: JSON.stringify({
+        date: soon.date,
+        time: soon.time,
+        customerName: 'Notice Test',
+        customerPhone: '+37400090001',
+        items: [{ serviceId: services[0].id }],
+      }),
+    });
+    assert.equal(tooSoon.status, 400);
+    assert.deepEqual(tooSoon.body, { error: 'too_soon', minNoticeMinutes: 1440 });
+
+    // Back to a week: a date ten days out is refused, though nothing on the page offers it.
+    await adminApi('/admin/availability/booking-rules', { method: 'PATCH', body: JSON.stringify({ bookingWindowDays: 7 }) });
+    const far = yerevanNowPlusMinutes(10 * 24 * 60);
+    const tooFar = await api('/bookings', {
+      method: 'POST',
+      body: JSON.stringify({
+        date: far.date,
+        time: '11:00',
+        customerName: 'Window Test',
+        customerPhone: '+37400090002',
+        items: [{ serviceId: services[0].id }],
+      }),
+    });
+    assert.equal(tooFar.status, 400);
+    assert.deepEqual(tooFar.body, { error: 'too_far', bookingWindowDays: 7 });
+    assert.equal((await api(`/services/${services[0].id}/slots`)).body.days.length, 7);
+  } finally {
+    await restore();
+  }
+});

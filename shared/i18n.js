@@ -120,3 +120,39 @@ export function dayLabel(dateObj, index, lang) {
   if (index === 1) return TODAY_TMRW[lang].tomorrow;
   return WEEKDAY_SHORT[lang][dateObj.getDay()];
 }
+// A notice period in words — "1 hour", "1,5 часа", "2 օր" — for the master's
+// minimum booking notice (always one of a fixed list: up to 45 minutes, whole
+// or half hours, or whole days).
+export function formatNotice(minutes, lang) {
+  const num = (n) => (lang === 'en' ? String(n) : String(n).replace('.', ','));
+  if (minutes >= 1440 && minutes % 1440 === 0) {
+    const d = minutes / 1440;
+    if (lang === 'ru') return d === 1 ? '1 день' : `${d} дня`;
+    if (lang === 'hy') return `${d} օր`;
+    return d === 1 ? '1 day' : `${d} days`;
+  }
+  if (minutes >= 60) {
+    const h = minutes / 60;
+    if (lang === 'ru') return h === 1 ? '1 час' : [1.5, 2, 3, 4].includes(h) ? `${num(h)} часа` : `${num(h)} часов`;
+    if (lang === 'hy') return `${num(h)} ժամ`;
+    return h === 1 ? '1 hour' : `${num(h)} hours`;
+  }
+  if (lang === 'ru') return `${minutes} минут`;
+  if (lang === 'hy') return `${minutes} րոպե`;
+  return `${minutes} minutes`;
+}
+
+// A booking window in words — "2 weeks", "1 месяц", "3 ամիս" — for one of the
+// fixed choices: 7, 14 or 21 days (weeks) or 30, 60 or 90 days (months).
+export function formatWindow(days, lang) {
+  const monthly = days % 30 === 0;
+  const n = monthly ? days / 30 : days / 7;
+  if (lang === 'ru') {
+    if (monthly) return n === 1 ? '1 месяц' : `${n} месяца`;
+    return n === 1 ? '1 неделю' : `${n} недели`;
+  }
+  if (lang === 'hy') return `${n} ${monthly ? 'ամիս' : 'շաբաթ'}`;
+  if (monthly) return n === 1 ? '1 month' : `${n} months`;
+  return n === 1 ? '1 week' : `${n} weeks`;
+}
+

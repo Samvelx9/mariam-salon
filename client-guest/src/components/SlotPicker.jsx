@@ -1,4 +1,4 @@
-import { dayLabel, parseLocalDate } from '../i18n.js';
+import { MONTH_SHORT, dayLabel, parseLocalDate, formatNotice, getMinNotice } from '../i18n.js';
 import { rem } from '../lib/rem.js';
 
 // A taken time is shown, struck through and unclickable, rather than left out:
@@ -17,7 +17,6 @@ const REASON_STYLE = {
 export default function SlotPicker({ T, lang, slotsData, slotsLoading, selectedDayIndex, selectedSlot, selectDay, selectSlot }) {
   const days = slotsData?.days ?? [];
   const day = days[selectedDayIndex];
-  const isTodaySelected = selectedDayIndex === 0;
 
   // One grid in clock order, free and taken together.
   const daySlots = [
@@ -56,6 +55,13 @@ export default function SlotPicker({ T, lang, slotsData, slotsLoading, selectedD
               <span style={{ fontSize: rem(15), fontWeight: 600, color: selected ? 'var(--white)' : 'var(--ink)' }}>
                 {dateObj.getDate()}
               </span>
+              {/* Past a week the bare day number is ambiguous, so the month
+                  is shown where it starts (and on the first day). */}
+              {days.length > 7 && (index === 0 || dateObj.getDate() === 1) && (
+                <span style={{ fontSize: rem(10), color: selected ? 'var(--white)' : 'var(--muted)', whiteSpace: 'nowrap' }}>
+                  {MONTH_SHORT[lang][dateObj.getMonth()]}
+                </span>
+              )}
             </button>
           );
         })}
@@ -65,9 +71,11 @@ export default function SlotPicker({ T, lang, slotsData, slotsLoading, selectedD
         <span style={{ fontSize: rem(13), color: 'var(--muted)' }}>{T.onlyRealOpenings}</span>
       </div>
 
-      {isTodaySelected && (
+      {/* Said whenever Mariam's notice period rules out times on this day —
+          today, or later days too when the notice is a day or two. */}
+      {getMinNotice() > 0 && day?.unavailable?.some((u) => u.reason === 'past') && (
         <div style={{ padding: '0 24px 8px' }}>
-          <span style={{ fontSize: rem(12.5), color: 'var(--muted)', fontStyle: 'italic' }}>{T.sameDayNotice}</span>
+          <span style={{ fontSize: rem(12.5), color: 'var(--muted)', fontStyle: 'italic' }}>{T.sameDayNotice(formatNotice(getMinNotice(), lang))}</span>
         </div>
       )}
 

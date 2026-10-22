@@ -22,6 +22,7 @@ import {
 } from '../services/profile.js';
 import { notifyGuest } from '../services/guestNotifications.js';
 import { RECENT_BOOKINGS_SQL } from '../lib/popularity.js';
+import { BOOKING_WINDOW_CHOICES, MIN_NOTICE_CHOICES, getBookingRules } from '../services/availability.js';
 
 export const adminRouter = Router();
 
@@ -621,6 +622,39 @@ adminRouter.put(
       return res.status(404).json({ error: 'day_not_found' });
     }
     res.json(rows[0]);
+  })
+);
+
+// When guests may book: how far ahead at the least, and how far into the
+// future at the most. Each saves on its own, as soon as it's picked.
+adminRouter.get(
+  '/availability/booking-rules',
+  asyncHandler(async (_req, res) => {
+    res.json(await getBookingRules());
+  })
+);
+
+adminRouter.patch(
+  '/availability/booking-rules',
+  asyncHandler(async (req, res) => {
+    const sets = [];
+    const values = [];
+    if (req.body?.minNoticeMinutes !== undefined) {
+      const minutes = Number(req.body.minNoticeMinutes);
+      if (!MIN_NOTICE_CHOICES.includes(minutes)) return res.status(400).json({ error: 'invalid_min_notice' });
+      values.push(minutes);
+      sets.push(`min_notice_minutes = $${values.length}`);
+    }
+    if (req.body?.bookingWindowDays !== undefined) {
+      const days = Number(req.body.bookingWindowDays);
+      if (!BOOKING_WINDOW_CHOICES.includes(days)) return res.status(400).json({ error: 'invalid_booking_window' });
+      values.push(days);
+      sets.push(`booking_window_days = $${values.length}`);
+    }
+    if (sets.length > 0) {
+      await pool.query(`UPDATE salon_profile SET ${sets.join(', ')} WHERE id = 1`, values);
+    }
+    res.json(await getBookingRules());
   })
 );
 

@@ -1,6 +1,6 @@
 import Header from './Header.jsx';
 import SummaryBanner from './SummaryBanner.jsx';
-import { formatDateAt, parseLocalDate } from '../i18n.js';
+import { formatDateAt, parseLocalDate, formatNotice, getMinNotice } from '../i18n.js';
 import { rem } from '../lib/rem.js';
 
 export default function DetailsScreen(f) {
@@ -59,7 +59,7 @@ export default function DetailsScreen(f) {
           <p style={{ margin: '14px 0 0', fontSize: rem(12.5), color: 'var(--terracotta)' }}>{T[f.bannerErrorKey]}</p>
         )}
 
-        <p style={{ margin: '20px 0 0', fontSize: rem(12.5), color: 'var(--muted)', lineHeight: 1.5 }}>{T.detailsCaption}</p>
+        <p style={{ margin: '20px 0 0', fontSize: rem(12.5), color: 'var(--muted)', lineHeight: 1.5 }}>{T.detailsCaption(getMinNotice() ? formatNotice(getMinNotice(), lang) : '')}</p>
       </div>
 
       <div className="bottom-bar" style={{ padding: '14px 24px 20px' }}>

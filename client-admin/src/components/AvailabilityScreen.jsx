@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { WEEKDAY_FULL, parseLocalDate, formatDate } from '../i18n.js';
+import { WEEKDAY_FULL, parseLocalDate, formatDate, formatNotice, formatWindow } from '../i18n.js';
 import ConfirmInline from './ConfirmInline.jsx';
 
 function todayStr() {
@@ -265,6 +265,8 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
         ))}
       </section>
 
+      <NoticeSection T={T} lang={lang} onAuthError={onAuthError} />
+
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <h3 style={{ fontSize: 16, fontWeight: 600 }}>{T.dateBlocksSection}</h3>
 
@@ -357,5 +359,83 @@ export default function AvailabilityScreen({ T, lang, onAuthError }) {
         )}
       </section>
     </div>
+  );
+}
+
+// The same lists the server accepts (MIN_NOTICE_CHOICES and
+// BOOKING_WINDOW_CHOICES in services/availability.js).
+const NOTICE_CHOICES = [0, 15, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440, 2880];
+const WINDOW_CHOICES = [7, 14, 21, 30, 60, 90];
+
+// When guests may book: how far ahead at the least, and how far into the
+// future at the most. Each saves as soon as it's picked.
+function NoticeSection({ T, lang, onAuthError }) {
+  const [rules, setRules] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(null); // 'profileSaved' | 'genericError'
+
+  useEffect(() => {
+    api.getBookingRules().then(setRules).catch((err) => {
+      if (!onAuthError(err)) setMessage('genericError');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function choose(fields) {
+    setSaving(true);
+    setMessage(null);
+    try {
+      setRules(await api.updateBookingRules(fields));
+      setMessage('profileSaved');
+    } catch (err) {
+      if (!onAuthError(err)) setMessage('genericError');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!rules) return null;
+  const { minNoticeMinutes, bookingWindowDays } = rules;
+
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <h3 style={{ fontSize: 16, fontWeight: 600 }}>{T.noticeSection}</h3>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', alignItems: 'center', gap: '10px 12px', fontSize: 14, maxWidth: 560 }}>
+          <label htmlFor="min-notice">{T.noticeLabel}</label>
+          <select
+            id="min-notice"
+            className="field-input"
+            value={minNoticeMinutes}
+            disabled={saving}
+            onChange={(e) => choose({ minNoticeMinutes: Number(e.target.value) })}
+          >
+            {NOTICE_CHOICES.map((m) => (
+              <option key={m} value={m}>
+                {m === 0 ? T.noticeNone : T.noticeBefore(formatNotice(m, lang))}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="booking-window">{T.windowLabel}</label>
+          <select
+            id="booking-window"
+            className="field-input"
+            value={bookingWindowDays}
+            disabled={saving}
+            onChange={(e) => choose({ bookingWindowDays: Number(e.target.value) })}
+          >
+            {WINDOW_CHOICES.map((d) => (
+              <option key={d} value={d}>{T.windowChoice(formatWindow(d, lang))}</option>
+            ))}
+          </select>
+        </div>
+        {message && (
+          <span role="status" style={{ fontSize: 13, color: message === 'profileSaved' ? 'var(--sage)' : 'var(--terracotta)' }}>
+            {T[message]}
+          </span>
+        )}
+        <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--muted)' }}>{T.noticeHint}</p>
+      </div>
+    </section>
   );
 }

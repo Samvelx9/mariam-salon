@@ -76,6 +76,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
+  // How far ahead guests must book, and how far into the future they can.
+  getBookingRules: () => request('/admin/availability/booking-rules'),
+  updateBookingRules: (fields) =>
+    request('/admin/availability/booking-rules', { method: 'PATCH', body: JSON.stringify(fields) }),
   getBlocks: (from, to) => request(`/admin/availability/blocks?from=${from}&to=${to}`),
   createBlock: (payload) =>
     request('/admin/availability/blocks', { method: 'POST', body: JSON.stringify(payload) }),

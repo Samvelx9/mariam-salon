@@ -8,9 +8,33 @@ import {
   addMinutes,
 } from '../lib/time.js';
 
-export const DAYS_AHEAD = 7;
 export const SLOT_INTERVAL_MINUTES = 30;
-export const CUTOFF_MINUTES = 90;
+
+// When guests may book (salon_profile.min_notice_minutes and
+// .booking_window_days, set on the Availability screen). The admin screen
+// offers exactly these lists.
+export const MIN_NOTICE_CHOICES = [0, 15, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440, 2880];
+export const BOOKING_WINDOW_CHOICES = [7, 14, 21, 30, 60, 90];
+const DEFAULT_RULES = { minNoticeMinutes: 90, bookingWindowDays: 7 };
+
+export async function getBookingRules() {
+  const { rows } = await pool.query(
+    'SELECT min_notice_minutes, booking_window_days FROM salon_profile WHERE id = 1'
+  );
+  if (!rows[0]) return DEFAULT_RULES;
+  return { minNoticeMinutes: rows[0].min_notice_minutes, bookingWindowDays: rows[0].booking_window_days };
+}
+
+// The earliest instant a guest may book from right now.
+export function earliestBookable(rules, now = new Date()) {
+  return addMinutes(now, rules.minNoticeMinutes);
+}
+
+// The last local date a guest may book on, as 'YYYY-MM-DD' — comparable as a
+// string with the date a booking request names.
+export function lastBookableDate(rules) {
+  return addDaysToDateStr(todayDateStr(), rules.bookingWindowDays - 1);
+}
 
 function overlaps(aStart, aEnd, bStart, bEnd) {
   return aStart < bEnd && bStart < aEnd;
@@ -69,9 +93,9 @@ export async function getActiveService(serviceId) {
   return rows[0] || null;
 }
 
-// Computes open slots for `service` over the next DAYS_AHEAD days, from
+// Computes open slots for `service` over the booking window, from
 // availability (weekly hours minus date-specific blocks) minus existing
-// non-cancelled bookings minus the cutoff window. Always queried fresh
+// non-cancelled bookings minus the minimum notice. Always queried fresh
 // (no caching) to keep the double-booking race window as small as possible.
 //
 // Each day also carries `unavailable`: the times on the same grid that can't be
@@ -80,11 +104,12 @@ export async function getActiveService(serviceId) {
 // skips from 14:30 to 16:00 reads like a glitch.
 export async function getAvailableSlots(service, { excludeBookingId, durationMinutes } = {}) {
   const slotLength = durationMinutes || service.duration_minutes;
+  const rules = await getBookingRules();
   const startDate = todayDateStr();
-  const endDate = addDaysToDateStr(startDate, DAYS_AHEAD - 1);
+  const endDate = lastBookableDate(rules);
   const rangeStartUtc = localToUtc(startDate, '00:00');
   const rangeEndUtc = addMinutes(localToUtc(endDate, '00:00'), 24 * 60);
-  const cutoffInstant = addMinutes(new Date(), CUTOFF_MINUTES);
+  const cutoffInstant = earliestBookable(rules);
 
   const { rows: weeklyHours } = await pool.query(
     'SELECT day_of_week, is_open, start_time, end_time, lunch_start, lunch_end FROM weekly_hours'
@@ -112,7 +137,7 @@ export async function getAvailableSlots(service, { excludeBookingId, durationMin
   const { rows: existingBookings } = await pool.query(bookingQuery, bookingParams);
 
   const days = [];
-  for (let i = 0; i < DAYS_AHEAD; i += 1) {
+  for (let i = 0; i < rules.bookingWindowDays; i += 1) {
     const date = addDaysToDateStr(startDate, i);
     const hours = hoursByDow.get(dayOfWeek(date));
     const slots = [];
