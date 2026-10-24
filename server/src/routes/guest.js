@@ -366,6 +366,21 @@ guestRouter.post('/bookings/manage', asyncHandler(async (req, res) => {
   });
 }));
 
+// POST /api/bookings/telegram-status — whether the guest has pressed Start in
+// the bot for this booking yet. The confirmation screen asks every few seconds
+// after opening Telegram, to tick its checkbox; the token is unguessable and
+// the answer is one yes/no.
+guestRouter.post('/bookings/telegram-status', asyncHandler(async (req, res) => {
+  const token = req.body?.token;
+  const guest = typeof token === 'string' && GUEST_TOKEN_PATTERN.test(token)
+    ? await getBookingForGuest({ token })
+    : null;
+  if (!guest) {
+    return res.status(404).json({ error: 'booking_not_found' });
+  }
+  res.json({ linked: Boolean(guest.guest_chat_id) });
+}));
+
 // POST /api/bookings/:id/cancel — no cutoff, always allowed
 guestRouter.post('/bookings/:id/cancel', asyncHandler(async (req, res) => {
   const id = Number(req.params.id);

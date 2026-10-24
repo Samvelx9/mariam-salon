@@ -69,6 +69,10 @@ export const api = {
   manageBooking: (token) =>
     request('/bookings/manage', { method: 'POST', body: JSON.stringify({ token }) }),
 
+  // Whether the guest has pressed Start in the bot for this booking yet.
+  telegramStatus: (token) =>
+    request('/bookings/telegram-status', { method: 'POST', body: JSON.stringify({ token }) }),
+
   cancelBooking: (id) => request(`/bookings/${id}/cancel`, { method: 'POST' }),
 
   rescheduleBooking: (id, payload) =>

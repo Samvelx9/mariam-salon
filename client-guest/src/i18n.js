@@ -92,6 +92,7 @@ export const STRINGS = {
     telegramReminders: 'Get reminders in Telegram',
     telegramPressStart: 'Now press “Start” in Telegram',
     telegramCaption: "The evening before and 2 hours before your visit.",
+    telegramLinked: 'Done — reminders are on.',
   },
   ru: {
     brandName: 'Студия Мариам',
@@ -174,6 +175,7 @@ export const STRINGS = {
     telegramReminders: 'Напоминания в Telegram',
     telegramPressStart: 'Теперь нажмите «Start» в Telegram',
     telegramCaption: 'Накануне вечером и за 2 часа до визита.',
+    telegramLinked: 'Готово — напоминания включены.',
   },
   hy: {
     brandName: 'Մարիամի ստուդիա',
@@ -256,5 +258,6 @@ export const STRINGS = {
     telegramReminders: 'Հիշեցումներ Telegram-ում',
     telegramPressStart: 'Հիմա Telegram-ում սեղմեք «Start»',
     telegramCaption: 'Նախորդ երեկոյան և այցից 2 ժամ առաջ։',
+    telegramLinked: 'Պատրաստ է — հիշեցումները միացված են։',
   },
 };
