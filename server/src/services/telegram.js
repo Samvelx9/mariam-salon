@@ -147,6 +147,14 @@ export async function getBotUsername() {
 // Best-effort: a Telegram outage or bad config must never break the booking
 // flow itself, so failures are logged, never thrown — which is also what lets
 // the guest routes call this after answering, without awaiting it.
+//
+// A message that didn't get through because of the network or Telegram itself
+// (no answer, a 5xx, a 429) is tried again a few times over ~12 minutes rather
+// than lost — once, a new booking's message vanished on a single "fetch
+// failed". A 4xx other than 429 won't fix itself, so it isn't retried.
+const RETRY_DELAYS_MS = [5_000, 30_000, 2 * 60_000, 10 * 60_000];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function notifyTelegram(event) {
   try {
     const config = telegramConfig();
@@ -155,7 +163,16 @@ export async function notifyTelegram(event) {
     const text = formatMessage(event);
     if (!text) return;
 
-    await callTelegram('sendMessage', { chat_id: config.chatId, text });
+    for (let attempt = 0; ; attempt += 1) {
+      const { ok, status } = await callTelegramDetailed('sendMessage', { chat_id: config.chatId, text });
+      if (ok) return;
+      const retryable = status === null || status === 429 || status >= 500;
+      if (!retryable || attempt >= RETRY_DELAYS_MS.length) {
+        console.error(`Telegram notification (${event.type}) not delivered after ${attempt + 1} attempt(s)`);
+        return;
+      }
+      await sleep(RETRY_DELAYS_MS[attempt]);
+    }
   } catch (err) {
     console.error('Telegram notification failed:', err.message);
   }
