@@ -677,4 +677,22 @@ test('the booking form finds earlier clients and carries their allergies to the 
   assert.equal(lookup.status, 200);
   assert.ok(lookup.body.length > 0);
   assert.ok(!JSON.stringify(lookup.body).includes('Латекс'));
+
+  // A guest may write their own allergies when booking: Mariam sees them, the
+  // guest's answer doesn't repeat them.
+  const { body: slots } = await api(`/slots?durationMinutes=${services[0].duration_minutes}`);
+  const open = slots.days.slice(1).find((d) => d.slots.length > 0);
+  assert.ok(open, 'need a free slot for a guest booking');
+  const own = await api('/bookings', {
+    method: 'POST',
+    body: JSON.stringify({
+      date: open.date, time: open.slots.at(-1), customerName: 'QA Аллергия Гость', customerPhone: '+37400070002',
+      items: [{ serviceId: services[0].id }], allergies: ' Пыльца ',
+    }),
+  });
+  assert.equal(own.status, 201, JSON.stringify(own.body));
+  createdBookingIds.push(own.body.id);
+  assert.ok(!JSON.stringify(own.body).includes('Пыльца'));
+  const { body: ownDay } = await adminApi(`/admin/bookings?from=${open.date}&to=${open.date}`);
+  assert.equal(ownDay.find((b) => b.id === own.body.id).allergies, 'Пыльца');
 });

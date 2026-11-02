@@ -221,6 +221,8 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
   const time = req.body?.time;
   const customerName = cleanString(req.body?.customerName, 100);
   const customerPhone = cleanString(req.body?.customerPhone, 30);
+  // Optional. Stored for Mariam's screens only; never sent back to guests.
+  const allergies = cleanString(req.body?.allergies, 500) || null;
   const requestKey = req.body?.requestKey ?? null;
   // The language the guest is reading the site in, for their messages later.
   // Anything unexpected just falls back to the default rather than refusing
@@ -289,6 +291,7 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
       requestKey,
       guestToken: newGuestToken(),
       guestLang,
+      allergies,
     });
     await client.query('COMMIT');
   } catch (err) {
@@ -312,6 +315,7 @@ guestRouter.post('/bookings', asyncHandler(async (req, res) => {
     type: 'booking_created',
     booking,
     durationMinutes: resolved.totalMinutes,
+    allergies,
   });
 }));
 

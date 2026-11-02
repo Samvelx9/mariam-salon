@@ -27,7 +27,9 @@ function formatMessage(event) {
       `Дата: ${when}\n` +
       duration +
       `Клиент: ${booking.customer_name}\n` +
-      `Телефон: ${booking.customer_phone}`
+      `Телефон: ${booking.customer_phone}` +
+      // What the guest wrote about allergies, so Mariam sees it before the visit.
+      (event.allergies ? `\n⚠️ Аллергии: ${event.allergies}` : '')
     );
   }
 
