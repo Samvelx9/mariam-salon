@@ -6,6 +6,7 @@ import LoginScreen from './components/LoginScreen.jsx';
 import AdminLayout from './components/AdminLayout.jsx';
 import DashboardScreen from './components/DashboardScreen.jsx';
 import BookingsScreen from './components/BookingsScreen.jsx';
+import ClientsScreen from './components/ClientsScreen.jsx';
 import ServicesScreen from './components/ServicesScreen.jsx';
 import AvailabilityScreen from './components/AvailabilityScreen.jsx';
 import ProfileScreen from './components/ProfileScreen.jsx';
@@ -14,6 +15,7 @@ import CategoriesScreen from './components/CategoriesScreen.jsx';
 const SCREENS = {
   dashboard: DashboardScreen,
   bookings: BookingsScreen,
+  clients: ClientsScreen,
   categories: CategoriesScreen,
   services: ServicesScreen,
   availability: AvailabilityScreen,
@@ -53,6 +55,9 @@ export default function App() {
 
   const [tab, setTabState] = useState(tabFromUrl);
   const auth = useAdminAuth();
+  // A client picked on the Clients screen to book: the Bookings screen opens
+  // its form with them filled in, then clears this.
+  const [bookingDraft, setBookingDraft] = useState(null);
 
   // Back / Forward between tabs.
   useEffect(() => {
@@ -94,7 +99,19 @@ export default function App() {
 
   return (
     <AdminLayout T={T} lang={lang} setLang={setLang} tab={tab} setTab={setTab} onLogout={auth.logout}>
-      <Screen T={T} lang={lang} onAuthError={auth.handleAuthError} />
+      <Screen
+        // Booking a client from the Clients screen starts a fresh Bookings screen.
+        key={tab}
+        T={T}
+        lang={lang}
+        onAuthError={auth.handleAuthError}
+        bookingDraft={bookingDraft}
+        clearBookingDraft={() => setBookingDraft(null)}
+        onBookClient={(client) => {
+          setBookingDraft(client);
+          setTab('bookings');
+        }}
+      />
     </AdminLayout>
   );
 }

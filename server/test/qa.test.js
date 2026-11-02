@@ -671,6 +671,19 @@ test('the booking form finds earlier clients and carries their allergies to the 
   const { body: again } = await adminApi(`/admin/clients?q=${encodeURIComponent('аллергия')}`);
   const client = again.find((c) => c.phone === '+374 00 07 00 01');
   assert.deepEqual([client.name, client.allergies], ['QA Аллергия', 'Латекс']);
+  // Only the name she's shown under is matched: "тест" no longer finds her.
+  const { body: byOldName } = await adminApi(`/admin/clients?q=${encodeURIComponent('аллергия тест')}`);
+  assert.ok(!byOldName.some((c) => c.phone === '+374 00 07 00 01'));
+
+  // The client base: one row for her phone, with what her bookings add up to.
+  assert.equal((await api('/admin/client-base')).status, 401);
+  const { body: base } = await adminApi('/admin/client-base');
+  const entry = base.find((c) => c.phone === '+374 00 07 00 01');
+  assert.equal(entry.name, 'QA Аллергия');
+  assert.deepEqual([...entry.names].sort(), ['QA Аллергия', 'QA Аллергия Тест']);
+  assert.equal(entry.allergies, 'Латекс');
+  assert.deepEqual([entry.upcoming, entry.visits], [2, 0]);
+  assert.deepEqual([entry.zones[0].service_id, entry.zones[0].count], [services[0].id, 2]);
 
   // Never to a guest, who only needs her phone number to look her bookings up.
   const lookup = await api('/bookings/lookup', { method: 'POST', body: JSON.stringify({ phone: '+374 00 07 00 01' }) });

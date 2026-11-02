@@ -76,7 +76,7 @@ const EMPTY_BOOKING_FORM = {
   status: 'confirmed',
 };
 
-export default function BookingsScreen({ T, lang, onAuthError }) {
+export default function BookingsScreen({ T, lang, onAuthError, bookingDraft, clearBookingDraft }) {
   // The calendar position starts from the URL, so a reload reopens the same
   // month, day and filter — see route.js.
   // The week first: what's on now, a column per day. 'week' | 'month' | 'year'.
@@ -267,13 +267,31 @@ export default function BookingsScreen({ T, lang, onAuthError }) {
     }
   }
 
-  // `prefill` comes from free time clicked in the week view: that day and time.
+  // A client sent over from the Clients screen: the form opens with them in it.
+  useEffect(() => {
+    if (!bookingDraft) return;
+    openAddBooking({ client: bookingDraft });
+    clearBookingDraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // `prefill` comes from free time clicked in the week view, or from "Book" on
+  // the Clients screen (that client).
   function openAddBooking(prefill = {}) {
+    const client = prefill.client;
     setBookingForm({
       ...EMPTY_BOOKING_FORM,
       items: [],
       date: prefill.date ?? (cleanupView ? todayStr() : selectedDate || todayStr()),
       ...(prefill.time ? { time: prefill.time } : {}),
+      ...(client
+        ? {
+            customerName: client.name,
+            customerPhone: client.phone,
+            allergies: client.allergies ?? '',
+            knownAllergies: client.allergies ?? '',
+          }
+        : {}),
     });
     setError(null);
     setEditingBookingId('new');

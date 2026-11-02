@@ -1,9 +1,10 @@
 import LangSwitcher from './LangSwitcher.jsx';
 
-const TABS = ['dashboard', 'bookings', 'categories', 'services', 'availability', 'profile'];
+const TABS = ['dashboard', 'bookings', 'clients', 'categories', 'services', 'availability', 'profile'];
 const TAB_LABEL_KEY = {
   dashboard: 'navDashboard',
   bookings: 'navBookings',
+  clients: 'navClients',
   categories: 'navCategories',
   services: 'navServices',
   availability: 'navAvailability',
