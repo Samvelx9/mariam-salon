@@ -631,3 +631,50 @@ test('the minimum notice and booking window are Mariam\'s to set, and the API en
     await restore();
   }
 });
+
+test('the booking form finds earlier clients and carries their allergies to the next visit', async () => {
+  // Far ahead and before opening, where no real booking sits; Mariam's own
+  // bookings ignore opening hours and the booking window.
+  const { date } = yerevanNowPlusMinutes(300 * 24 * 60);
+  const book = async (time, body) => {
+    const res = await adminApi('/admin/bookings', {
+      method: 'POST',
+      body: JSON.stringify({ date, time, items: [{ serviceId: services[0].id }], ...body }),
+    });
+    assert.equal(res.status, 201, JSON.stringify(res.body));
+    createdBookingIds.push(res.body.id);
+    return res.body;
+  };
+  const first = await book('06:00', {
+    customerName: 'QA Аллергия Тест', customerPhone: '+374 00 07 00 01', allergies: '  Латекс ',
+  });
+  assert.equal(first.allergies, 'Латекс');
+
+  // Found by any part of the name, in any case, or by the phone's digits however it was written.
+  for (const q of ['аллергия', 'QA АЛЛЕР', '00070001', '374-00-07']) {
+    const { body } = await adminApi(`/admin/clients?q=${encodeURIComponent(q)}`);
+    assert.deepEqual(body.find((c) => c.phone === '+374 00 07 00 01'),
+      { phone: '+374 00 07 00 01', name: 'QA Аллергия Тест', allergies: 'Латекс', visits: 0 }, q);
+  }
+  // Too short or a LIKE wildcard: nothing. Guests can't search at all.
+  assert.deepEqual((await adminApi('/admin/clients?q=a')).body, []);
+  assert.deepEqual((await adminApi('/admin/clients?q=%25%25')).body, []);
+  assert.equal((await api('/admin/clients?q=аллергия')).status, 401);
+
+  // Her next booking, taken without a note: the list still warns of hers, and
+  // saving it blank doesn't hide what the first one recorded.
+  const next = await book('07:00', { customerName: 'QA Аллергия', customerPhone: '+374 00 07 00 01', allergies: '' });
+  assert.equal(next.allergies, null);
+  const { body: listed } = await adminApi(`/admin/bookings?from=${date}&to=${date}`);
+  const row = listed.find((b) => b.id === next.id);
+  assert.deepEqual([row.allergies, row.known_allergies], [null, 'Латекс']);
+  const { body: again } = await adminApi(`/admin/clients?q=${encodeURIComponent('аллергия')}`);
+  const client = again.find((c) => c.phone === '+374 00 07 00 01');
+  assert.deepEqual([client.name, client.allergies], ['QA Аллергия', 'Латекс']);
+
+  // Never to a guest, who only needs her phone number to look her bookings up.
+  const lookup = await api('/bookings/lookup', { method: 'POST', body: JSON.stringify({ phone: '+374 00 07 00 01' }) });
+  assert.equal(lookup.status, 200);
+  assert.ok(lookup.body.length > 0);
+  assert.ok(!JSON.stringify(lookup.body).includes('Латекс'));
+});

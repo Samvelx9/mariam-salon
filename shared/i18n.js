@@ -61,6 +61,11 @@ const PLURAL_FORMS = {
     ru: ['зона', 'зоны', 'зон'],
     hy: ['գոտի'],
   },
+  visits: {
+    en: ['visit', 'visits'],
+    ru: ['визит', 'визита', 'визитов'],
+    hy: ['այց'],
+  },
 };
 
 export function pluralize(count, lang, noun) {

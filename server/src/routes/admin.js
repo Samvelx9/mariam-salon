@@ -12,6 +12,7 @@ import {
   resolveItems,
   insertBookingWithItems,
   replaceItems,
+  ADMIN_FIELDS,
 } from '../services/bookings.js';
 import {
   PROFILE_TEXT_COLUMNS,
@@ -728,6 +729,42 @@ adminRouter.delete(
 // Bookings
 // ---------------------------------------------------------------------------
 
+// What Mariam notes about a client's allergies: blank is no note, so a
+// booking taken without one never hides what an earlier visit recorded.
+const readAllergies = (value) => cleanString(value, 500) || null;
+const adminBooking = (id) => getBookingWithItems(id, { extraFields: ADMIN_FIELDS });
+
+// GET /api/admin/clients?q — up to 8 earlier clients whose name (any they
+// booked under) or phone matches, for the booking form to fill in: their
+// latest name, their phone, and the allergies their latest booking that
+// mentions any gave. Most recent first.
+adminRouter.get(
+  '/clients',
+  asyncHandler(async (req, res) => {
+    const q = cleanString(req.query.q, 50);
+    if (q.length < 2) return res.json([]);
+    // Typed as a name, matched anywhere in one; typed as digits, anywhere in
+    // the phone however it was written (spaces, dashes, a leading +).
+    const pattern = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const digits = q.replace(/\D/g, '');
+    const { rows } = await pool.query(
+      `SELECT b.customer_phone AS phone,
+              (array_agg(b.customer_name ORDER BY b.start_time DESC, b.id DESC))[1] AS name,
+              (array_agg(b.allergies ORDER BY b.start_time DESC, b.id DESC)
+                 FILTER (WHERE b.allergies IS NOT NULL))[1] AS allergies,
+              COUNT(*) FILTER (WHERE b.status = 'completed')::int AS visits
+       FROM bookings b
+       GROUP BY b.customer_phone
+       HAVING bool_or(b.customer_name ILIKE $1)
+           OR ($2 <> '' AND regexp_replace(b.customer_phone, '\\D', '', 'g') LIKE '%' || $2 || '%')
+       ORDER BY MAX(b.start_time) DESC
+       LIMIT 8`,
+      [pattern, digits.length >= 3 ? digits : '']
+    );
+    res.json(rows);
+  })
+);
+
 adminRouter.get(
   '/bookings',
   asyncHandler(async (req, res) => {
@@ -749,7 +786,7 @@ adminRouter.get(
       where += ' AND b.status = $3';
     }
 
-    const { rows } = await pool.query(bookingsQuery({ where }), params);
+    const { rows } = await pool.query(bookingsQuery({ where, extraFields: ADMIN_FIELDS }), params);
     res.json(rows);
   })
 );
@@ -802,9 +839,10 @@ adminRouter.post(
         status,
         totalPrice: resolved.totalPrice,
         items: resolved.items,
+        allergies: readAllergies(req.body?.allergies),
       });
       await client.query('COMMIT');
-      res.status(201).json(await getBookingWithItems(bookingId));
+      res.status(201).json(await adminBooking(bookingId));
     } catch (err) {
       await client.query('ROLLBACK');
       if (err.code === EXCLUSION_VIOLATION) {
@@ -857,6 +895,7 @@ adminRouter.patch(
       }
       set('status', req.body.status);
     }
+    if (req.body?.allergies !== undefined) set('allergies', readAllergies(req.body.allergies));
 
     // Zones and time interact: changing the zones changes how long the visit
     // runs, so the end time is always recomputed from whichever of the two the
@@ -915,7 +954,7 @@ adminRouter.patch(
       client.release();
     }
 
-    const updated = await getBookingWithItems(id);
+    const updated = await adminBooking(id);
     res.json(updated);
     tellGuestAboutChange(existing, updated);
   })

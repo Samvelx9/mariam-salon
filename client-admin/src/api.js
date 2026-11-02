@@ -93,6 +93,8 @@ export const api = {
     const qs = params.toString();
     return request(`/admin/bookings${qs ? `?${qs}` : ''}`);
   },
+  // Earlier clients matching a name or phone, for the booking form to fill in.
+  searchClients: (q) => request(`/admin/clients?${new URLSearchParams({ q })}`),
   // Mariam's own booking — no cutoff or opening-hours check, see the endpoint.
   createBooking: (payload) =>
     request('/admin/bookings', { method: 'POST', body: JSON.stringify(payload) }),
