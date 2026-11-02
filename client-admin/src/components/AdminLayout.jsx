@@ -17,7 +17,7 @@ export default function AdminLayout({ T, lang, setLang, tab, setTab, onLogout, c
       <div style={{ borderBottom: '1px solid var(--line)', background: 'var(--white)' }}>
         <div
           className="admin-content"
-          style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+          style={{ padding: '16px var(--gutter)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
         >
           <h2 style={{ fontSize: 18, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {T.appName}
@@ -34,7 +34,7 @@ export default function AdminLayout({ T, lang, setLang, tab, setTab, onLogout, c
       {/* The tabs stay in reach on long screens (dashboard, home page) instead
           of scrolling away; content passes underneath the frosted bar. */}
       <div className="tab-bar">
-        <div className="admin-content" style={{ padding: 0, display: 'flex', gap: 4, overflowX: 'auto' }}>
+        <div className="admin-content" style={{ padding: '0 max(0px, calc(var(--gutter) - 16px))', display: 'flex', gap: 4, overflowX: 'auto' }}>
           {TABS.map((t) => (
             <button
               key={t}
